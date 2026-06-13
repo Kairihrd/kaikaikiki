@@ -1,29 +1,12 @@
 import { useState } from "react";
-import {
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  Check,
-  ChevronDown,
-  ChevronRight,
-  SlidersHorizontal,
-  Sparkles,
-  Users,
-  X,
-} from "lucide-react-native";
+import { Check, SlidersHorizontal, Sparkles, X } from "lucide-react-native";
 import ScreenGlow from "@/components/ScreenGlow";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import BillboardMosaic from "@/components/BillboardMosaic";
-import StatCard from "@/components/StatCard";
-import Countdown from "@/components/Countdown";
 import FloatingPostButton from "@/components/FloatingPostButton";
 import {
   GENRES,
@@ -33,17 +16,16 @@ import {
 import { useCurrentTheme } from "@/lib/themeApi";
 import { colors, radius } from "@/lib/theme";
 
-// 1. 今日のビルボード(アプリのメイン画面)
+// 1. 今日のビルボード(Apple Watch ホーム風のハニカム 2Dパン キャンバス)
 export default function HomeScreen() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [genre, setGenre] = useState<Genre | null>(null);
-  // 今月のテーマ(backend 接続時は API、未接続/失敗時は mock の「境界」)。
   const { theme } = useCurrentTheme();
 
   // 【Sensedルール】毎日、表示回数の少ない人を優先して入れ替わるビルボード。
   const all = getTodaysBillboardArtworks();
   const artworks = genre ? all.filter((a) => a.genre === genre) : all;
-  // フィルタ後も注目作品(id:1)があれば中央に、無ければ先頭を中央にする。
+  // 注目作品(id:1)があれば中央に、無ければ先頭を中央にする。
   const highlightId = artworks.some((a) => a.id === "1")
     ? "1"
     : artworks[0]?.id;
@@ -54,61 +36,32 @@ export default function HomeScreen() {
       <SafeAreaView edges={["top"]} style={styles.safe}>
         <AppHeader subtitle="今日のビルボード" />
 
-        <ScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* 日付 + Today's 100(小さめ) */}
-          <View style={styles.hero}>
-            <View style={styles.dateRow}>
-              <Text style={styles.date}>2025.05.24</Text>
-              <ChevronDown size={13} color={colors.textDim} />
-            </View>
+        {/* コンパクトな情報バー(テーマ / フィルター) */}
+        <View style={styles.topBar}>
+          <View>
+            <Text style={styles.date}>2025.05.24</Text>
             <Text style={styles.todays}>Today&apos;s 100</Text>
           </View>
-
-          {/* 情報カード 2枚(小さめ) */}
-          <View style={styles.stats}>
-            <StatCard
-              style={styles.statItem}
-              value="100 Creators"
-              label="毎日100人が登場"
-              icon={<Users size={15} color={colors.cyan} />}
-            />
-            <Pressable style={styles.statItem} onPress={() => router.push("/theme")}>
-              <StatCard
-                value={`テーマ：${theme.title}`}
-                label="今月のお題を見る"
-                icon={<Sparkles size={15} color={colors.cyan} />}
-                right={<ChevronRight size={16} color={colors.textFaint} />}
-              />
+          <View style={styles.topActions}>
+            <Pressable style={styles.chip} onPress={() => router.push("/theme")}>
+              <Sparkles size={14} color={colors.cyan} />
+              <Text style={styles.chipText} numberOfLines={1}>
+                {theme.title}
+              </Text>
+            </Pressable>
+            <Pressable style={styles.chip} onPress={() => setFilterOpen(true)}>
+              <SlidersHorizontal size={14} color={colors.textDim} />
+              <Text style={styles.chipText} numberOfLines={1}>
+                {genre ?? "すべて"}
+              </Text>
             </Pressable>
           </View>
+        </View>
 
-          {/* ビルボード(最重要・中央集合型) */}
+        {/* ハニカム 2Dパン キャンバス(表示領域いっぱい・縦スクロールしない) */}
+        <View style={styles.canvasArea}>
           <BillboardMosaic artworks={artworks} highlightId={highlightId} />
-
-          {/* 下部: 次の更新 / フィルター */}
-          <View style={styles.footer}>
-            <View style={styles.footerCard}>
-              <Text style={styles.footerLabel}>次の更新まで</Text>
-              <Countdown
-                initialSeconds={12 * 3600 + 34 * 60 + 56}
-                style={styles.countdown}
-              />
-            </View>
-            <Pressable
-              style={[styles.footerCard, styles.filter]}
-              onPress={() => setFilterOpen(true)}
-            >
-              <SlidersHorizontal size={16} color={colors.textDim} />
-              <View>
-                <Text style={styles.footerLabel}>フィルター</Text>
-                <Text style={styles.filterValue}>{genre ?? "すべてのジャンル"}</Text>
-              </View>
-            </Pressable>
-          </View>
-        </ScrollView>
+        </View>
       </SafeAreaView>
 
       {/* X風フローティング投稿ボタン(今日のビルボードに応募) */}
@@ -183,36 +136,33 @@ function FilterRow({
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   safe: { flex: 1 },
-  content: { paddingHorizontal: 16, paddingBottom: 140, gap: 14 },
-  hero: { alignItems: "center", paddingTop: 2, gap: 1 },
-  dateRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  date: {
-    color: colors.textDim,
-    fontSize: 12,
-    letterSpacing: 3,
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 2,
+    paddingBottom: 8,
+    gap: 10,
   },
-  todays: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: "800",
-    letterSpacing: -0.3,
-  },
-  stats: { flexDirection: "row", gap: 10 },
-  statItem: { flex: 1 },
-  footer: { flexDirection: "row", gap: 12 },
-  footerCard: {
-    flex: 1,
+  date: { color: colors.textDim, fontSize: 11, letterSpacing: 2 },
+  todays: { color: colors.text, fontSize: 16, fontWeight: "800", marginTop: 1 },
+  topActions: { flexDirection: "row", gap: 8, flexShrink: 1 },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    maxWidth: 150,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: radius.pill,
     backgroundColor: colors.glass,
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: radius.lg,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
   },
-  footerLabel: { color: colors.textFaint, fontSize: 10 },
-  countdown: { color: colors.cyan, fontSize: 15, fontWeight: "700", marginTop: 2 },
-  filter: { flexDirection: "row", alignItems: "center", gap: 10 },
-  filterValue: { color: colors.text, fontSize: 14, fontWeight: "700", marginTop: 2 },
+  chipText: { color: colors.text, fontSize: 12, fontWeight: "600" },
+  // ハニカムキャンバス領域。下部タブバーに被らないよう余白を確保。
+  canvasArea: { flex: 1, marginBottom: 96 },
   backdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.6)",

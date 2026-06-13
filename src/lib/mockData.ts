@@ -415,9 +415,41 @@ function pickBillboard(pool: Artwork[], limit: number): Artwork[] {
   return picked.slice(0, limit);
 }
 
-// 今日のビルボード(Today's 100)。100件以下なら実質全件、超えたら上位100件。
+// 実データが目標数に満たない場合、ビルボードを埋めるプレースホルダー作品を生成する。
+// (Today's 100 を常に100枚にするための補完。後で実データが増えれば自然に置き換わる)
+function makePlaceholder(i: number): Artwork {
+  const genre = GENRES[i % GENRES.length];
+  return {
+    id: `ph-${i}`,
+    title: `Untitled #${i + 1}`,
+    creatorName: `creator${i + 1}`,
+    creatorHandle: `@creator${i + 1}`,
+    imageUrl: img(`ph-${i}`, 400, 400, GRAY_GENRES.includes(genre)),
+    genre,
+    theme: CURRENT_THEME,
+    description: "今日のビルボードに並ぶ作品。",
+    likes: 50 + ((i * 53) % 1500),
+    comments: 1 + ((i * 7) % 60),
+    isVideo: false,
+    isAudio: false,
+    tags: [`#${genre}`],
+    size: "small",
+    shownCount: 5,
+  };
+}
+
+// list を n 件に揃える(多ければ切り詰め、少なければプレースホルダーで補完)。
+function padTo(list: Artwork[], n: number): Artwork[] {
+  if (list.length >= n) return list.slice(0, n);
+  const out = [...list];
+  let i = 0;
+  while (out.length < n) out.push(makePlaceholder(i++));
+  return out;
+}
+
+// 今日のビルボード(Today's 100)。実データが足りなくても常に limit 件(既定100)を返す。
 export function getTodaysBillboardArtworks(limit = 100): Artwork[] {
-  return pickBillboard(ARTWORKS, limit);
+  return padTo(pickBillboard(ARTWORKS, limit), limit);
 }
 
 // テーマビルボード。テーマ参加作品から毎日 limit 件を同じルールで選出する。

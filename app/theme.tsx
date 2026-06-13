@@ -116,8 +116,10 @@ export default function ThemeScreen() {
             </Pressable>
           </View>
 
-          {/* ビルボード */}
-          <BillboardMosaic artworks={artworks} highlightId="1" />
+          {/* ビルボード(ハニカム2Dパン。ScrollView内なので高さを固定する) */}
+          <View style={styles.themeCanvas}>
+            <BillboardMosaic artworks={artworks} highlightId="1" />
+          </View>
         </ScrollView>
       </SafeAreaView>
 
@@ -133,6 +135,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   safe: { flex: 1 },
   content: { paddingHorizontal: 16, paddingBottom: 130, gap: 20 },
+  themeCanvas: { height: 460 },
   banner: {
     borderRadius: radius.xl,
     borderColor: colors.border,

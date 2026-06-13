@@ -1,11 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
+  type LayoutChangeEvent,
+  PanResponder,
   Pressable,
   StyleSheet,
   Text,
   View,
-  useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -13,257 +14,340 @@ import { router } from "expo-router";
 import { Play } from "lucide-react-native";
 import { type Artwork } from "@/lib/mockData";
 import { genreMeta, usesPhoto } from "@/lib/genre";
-import { colors, radius } from "@/lib/theme";
+import { colors } from "@/lib/theme";
 
 interface BillboardMosaicProps {
   artworks: Artwork[];
-  /** 互換用(現在のレイアウトでは特別な強調はしない) */
+  /** 中央(キャンバス原点)に置く注目作品ID。既定は先頭。 */
   highlightId?: string;
 }
 
-type Slot = { art: Artwork; x: number; y: number; w: number; h: number };
+// カードの基本サイズ。元(84)の約1.2倍で、少し大きめだが圧迫しない密度に。
+const CELL = 96;
+const GAP = 9; // カード間の隙間(詰まりすぎない程度)
+const STEP = CELL + GAP; // 横方向のセル間隔
+const ROW_H = STEP * 0.84; // 縦方向は六角詰めで少し詰める
 
-// index / theme 画面の左右パディング
-const H_PADDING = 16;
-// 内部グリッドの列数(card unit = containerWidth / 6)
-const COLS = 6;
-const GAP = 7;
-// 表示枚数(30〜45枚)
-const MAX_CARDS = 42;
+// 魚眼(中央拡大)のスケール。中央=最大、外側=最小。
+// 中央を主役にするため周辺はしっかり小さく(SCALE_MIN を下げる)。
+const SCALE_MAX = 1.85;
+const SCALE_MIN = 0.7;
+// 1軸あたりの係数(scale = fx * fy なので各軸は平方根を使う)。
+const MAX_1D = Math.sqrt(SCALE_MAX);
+const MIN_1D = Math.sqrt(SCALE_MIN);
+// 拡大範囲を狭めて、中央から離れると速やかに小さくする。
+const FALLOFF = STEP * 1.3;
 
-// カード幅(列数)のパターン。小カード中心に中・大を少し混ぜる。
-// (3列 = 大カード。全体で数枚だけになるよう散らす)
-const WIDTH_PATTERN = [
-  2, 1, 3, 1, 2, 2, 1, 2, 1, 2, 3, 1, 2, 1, 1, 2, 2, 1, 2, 1,
-  3, 1, 2, 2, 1, 2, 1, 1, 2, 2, 1, 3, 1, 2, 1, 2, 2, 1, 2, 1, 1, 2,
-];
-// 縦横比(高さ = 幅 * aspect)。縦長・正方・横長を混ぜる。
-const ASPECT_PATTERN = [
-  1.25, 1.0, 1.15, 1.1, 0.9, 1.2, 1.0, 1.3, 1.1, 0.95,
-  1.2, 1.0, 1.15, 1.25, 1.0, 0.9, 1.2, 1.1, 1.0, 1.3,
-];
+type Slot = {
+  art: Artwork;
+  baseX: number; // キャンバス中心からの相対座標
+  baseY: number;
+  center: boolean;
+};
 
-// ----------------------------------------------------------------------------
-// 縦長モザイクビルボードのレイアウトを計算する。
-// CSS grid が無いため、6列のユニットグリッド上で skyline(スカイライン)詰めを行い、
-// 大小の角丸カードを横幅いっぱいに隙間なく縦へ積む。横にはみ出さず、重なりも出ない。
-// ----------------------------------------------------------------------------
-function buildLayout(containerWidth: number, artworks: Artwork[]) {
-  if (containerWidth <= 0 || artworks.length === 0) {
-    return { slots: [] as Slot[], height: 0 };
-  }
+// ハニカム配置を計算する。作品数 N に合わせて六角グリッドのセルを生成し、
+// 中心に近い順に N 個だけ採用する(=中央に密集した六角形ブロック)。
+// 件数制限はしない。100件渡されれば100枚すべて配置する。
+function buildHoneycomb(artworks: Artwork[], highlightId?: string): Slot[] {
+  const n = artworks.length;
+  if (n === 0) return [];
 
-  const unit = containerWidth / COLS;
-  const colY = new Array<number>(COLS).fill(0); // 各列の現在の高さ(px)
-  const count = Math.min(MAX_CARDS, artworks.length);
-  const slots: Slot[] = [];
-
-  for (let i = 0; i < count; i++) {
-    const wCols = Math.min(WIDTH_PATTERN[i % WIDTH_PATTERN.length], COLS);
-    const aspect = ASPECT_PATTERN[i % ASPECT_PATTERN.length];
-
-    // wCols 列ぶんが入る開始列のうち、最も低い(y が小さい)位置を選ぶ。
-    let bestC = 0;
-    let bestY = Infinity;
-    for (let c = 0; c <= COLS - wCols; c++) {
-      let maxY = 0;
-      for (let k = 0; k < wCols; k++) maxY = Math.max(maxY, colY[c + k]);
-      if (maxY < bestY) {
-        bestY = maxY;
-        bestC = c;
-      }
+  const radius = Math.ceil(Math.sqrt(n)) + 4;
+  const cands: { bx: number; by: number; d: number }[] = [];
+  for (let row = -radius; row <= radius; row++) {
+    const by = row * ROW_H;
+    const offset = (row & 1) === 0 ? 0 : STEP / 2; // 奇数行を半セルずらす=ハニカム
+    for (let col = -radius; col <= radius; col++) {
+      const bx = col * STEP + offset;
+      cands.push({ bx, by, d: Math.sqrt(bx * bx + by * by) });
     }
-
-    const w = Math.round(wCols * unit - GAP);
-    const h = Math.round(wCols * unit * aspect - GAP);
-    const x = Math.round(bestC * unit);
-    const y = Math.round(bestY);
-    slots.push({ art: artworks[i], x, y, w, h });
-
-    const nextY = y + h + GAP;
-    for (let k = 0; k < wCols; k++) colY[bestC + k] = nextY;
   }
+  cands.sort((a, b) => a.d - b.d);
+  const chosen = cands.slice(0, n);
 
-  return { slots, height: Math.max(...colY) - GAP };
+  const hero = artworks.find((a) => a.id === highlightId) ?? artworks[0];
+  const rest = artworks.filter((a) => a.id !== hero.id);
+
+  const slots: Slot[] = [];
+  chosen.forEach((c, idx) => {
+    const art = idx === 0 ? hero : rest[idx - 1];
+    if (!art) return;
+    slots.push({ art, baseX: c.bx, baseY: c.by, center: idx === 0 });
+  });
+  return slots;
 }
 
-export default function BillboardMosaic({ artworks }: BillboardMosaicProps) {
-  const { width } = useWindowDimensions();
-  const innerWidth = width - H_PADDING * 2;
+const clamp = (v: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, v));
 
-  const { slots, height } = useMemo(
-    () => buildLayout(innerWidth, artworks),
-    [innerWidth, artworks],
+// Apple Watch のホーム画面風: 2Dパン可能なキャンバス上にハニカム配置し、
+// 画面中央に近いカードほど拡大する(魚眼)。100枚対応。
+// 滑らかさのため:
+//  - スケールは Animated.interpolate(fx*fy)で表現し、毎フレームの手動ループを廃止。
+//  - 表示範囲付近のカードだけ描画(カリング)。判定は throttle した pan 位置で行う。
+export default function BillboardMosaic({
+  artworks,
+  highlightId,
+}: BillboardMosaicProps) {
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  // カリング/zIndex 判定用の pan 位置(throttle 更新。毎フレームは更新しない)。
+  const [panCenter, setPanCenter] = useState({ x: 0, y: 0 });
+
+  const slots = useMemo(
+    () => buildHoneycomb(artworks, highlightId),
+    [artworks, highlightId],
   );
 
+  const pan = useMemo(() => new Animated.ValueXY({ x: 0, y: 0 }), []);
+  const panValRef = useRef({ x: 0, y: 0 });
+  const startRef = useRef({ x: 0, y: 0 });
+  const lastTickRef = useRef(0);
+
+  // パン可能範囲(端のカードを中央付近まで持ってこられる程度)。
+  const limit = useMemo(() => {
+    let mx = 0;
+    let my = 0;
+    for (const s of slots) {
+      mx = Math.max(mx, Math.abs(s.baseX));
+      my = Math.max(my, Math.abs(s.baseY));
+    }
+    return { x: mx + STEP, y: my + STEP };
+  }, [slots]);
+
+  // 表示中(近傍)のカードと、中央に最も近いカード(最前面)を計算する。
+  const { visible, topId } = useMemo(() => {
+    if (size.w === 0) return { visible: [] as Slot[], topId: null as string | null };
+    const mx = size.w / 2 + CELL * 1.4; // 画面外側にも少し余分に描画
+    const my = size.h / 2 + CELL * 1.4;
+    const vis: Slot[] = [];
+    let best: Slot | null = null;
+    let bestD = Infinity;
+    for (const s of slots) {
+      const dx = s.baseX + panCenter.x;
+      const dy = s.baseY + panCenter.y;
+      if (Math.abs(dx) < mx && Math.abs(dy) < my) vis.push(s);
+      const d = dx * dx + dy * dy;
+      if (d < bestD) {
+        bestD = d;
+        best = s;
+      }
+    }
+    return { visible: vis, topId: best ? best.art.id : null };
+  }, [slots, panCenter, size]);
+
+  // pan の変化を監視: 範囲クランプ + throttle でカリング用 state を更新。
+  useEffect(() => {
+    const id = pan.addListener(({ x, y }) => {
+      panValRef.current = { x, y };
+      const cx = clamp(x, -limit.x, limit.x);
+      const cy = clamp(y, -limit.y, limit.y);
+      if (cx !== x || cy !== y) {
+        pan.stopAnimation();
+        pan.setValue({ x: cx, y: cy });
+        return;
+      }
+      const now = Date.now();
+      if (now - lastTickRef.current > 80) {
+        lastTickRef.current = now;
+        setPanCenter({ x, y });
+      }
+    });
+    return () => pan.removeListener(id);
+  }, [pan, limit]);
+
+  const responder = useMemo(
+    () =>
+      // panValRef/startRef はハンドラ内でのみ読む(render 中には参照しない)ため安全。
+      // eslint-disable-next-line react-hooks/refs
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_e, g) =>
+          Math.abs(g.dx) > 3 || Math.abs(g.dy) > 3,
+        onPanResponderGrant: () => {
+          pan.stopAnimation();
+          startRef.current = { ...panValRef.current };
+        },
+        onPanResponderMove: (_e, g) => {
+          // 指に1:1で追従(クランプのみ)。
+          pan.setValue({
+            x: clamp(startRef.current.x + g.dx, -limit.x, limit.x),
+            y: clamp(startRef.current.y + g.dy, -limit.y, limit.y),
+          });
+        },
+        onPanResponderRelease: (_e, g) => {
+          // 慣性。端ではリスナーがクランプして跳ねない。
+          Animated.decay(pan, {
+            velocity: { x: g.vx, y: g.vy },
+            deceleration: 0.985,
+            useNativeDriver: false,
+          }).start(() => setPanCenter({ ...panValRef.current }));
+        },
+      }),
+    [limit, pan],
+  );
+
+  const onLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    setSize({ w: width, h: height });
+  };
+
   return (
-    <View style={[styles.canvas, { height }]}>
-      {slots.map((s) => (
-        <BillboardCard key={s.art.id} slot={s} />
-      ))}
+    <View style={styles.root} onLayout={onLayout} {...responder.panHandlers}>
+      <Animated.View
+        style={[
+          StyleSheet.absoluteFill,
+          { transform: pan.getTranslateTransform() },
+        ]}
+      >
+        {size.w > 0
+          ? visible.map((s) => (
+              <CardNode
+                key={s.art.id}
+                slot={s}
+                pan={pan}
+                centerX={size.w / 2}
+                centerY={size.h / 2}
+                top={s.art.id === topId}
+              />
+            ))
+          : null}
+      </Animated.View>
     </View>
   );
 }
 
-// 1枚のビルボードカード(角丸四角)。タップで作品詳細へ遷移し、押すと軽くスケールする。
-// ジャンルに応じて写真カード / グラデーション+アイコンカード / 文章カードを出し分け、
-// 右上に必ずジャンルバッジを表示して「どの創作ジャンルか」がひと目で分かるようにする。
-function BillboardCard({ slot }: { slot: Slot }) {
-  // 安定した Animated.Value(refのrender中アクセスを避けるため useState で遅延初期化)
-  const [scale] = useState(() => new Animated.Value(1));
-  const large = slot.w >= 110; // タイトル/本文を出すのは中〜大カードのみ
+// ハニカムの1カード(角丸スクエア)。スケールは pan からの interpolate(fx*fy)で
+// 中央ほど大きく(=Animated 任せで滑らか)。最前面カードは zIndex を上げ作品名を出す。
+function CardNode({
+  slot,
+  pan,
+  centerX,
+  centerY,
+  top,
+}: {
+  slot: Slot;
+  pan: Animated.ValueXY;
+  centerX: number;
+  centerY: number;
+  top: boolean;
+}) {
   const art = slot.art;
   const meta = genreMeta(art.genre);
   const photo = usesPhoto(art.genre);
   const Icon = meta.Icon;
-  const iconSize = Math.max(16, Math.min(slot.w, slot.h) * 0.26);
+  const left = centerX + slot.baseX - CELL / 2;
+  const top_ = centerY + slot.baseY - CELL / 2;
 
-  const pressIn = () =>
-    Animated.spring(scale, {
-      toValue: 0.94,
-      useNativeDriver: true,
-      speed: 40,
-      bounciness: 0,
-    }).start();
-  const pressOut = () =>
-    Animated.spring(scale, {
-      toValue: 1,
-      useNativeDriver: true,
-      speed: 20,
-      bounciness: 8,
-    }).start();
+  // 各軸の拡大係数。-baseX で「その軸が画面中央」= 最大。
+  const fx = pan.x.interpolate({
+    inputRange: [-slot.baseX - FALLOFF, -slot.baseX, -slot.baseX + FALLOFF],
+    outputRange: [MIN_1D, MAX_1D, MIN_1D],
+    extrapolate: "clamp",
+  });
+  const fy = pan.y.interpolate({
+    inputRange: [-slot.baseY - FALLOFF, -slot.baseY, -slot.baseY + FALLOFF],
+    outputRange: [MIN_1D, MAX_1D, MIN_1D],
+    extrapolate: "clamp",
+  });
+  const scale = Animated.multiply(fx, fy);
 
   return (
-    <Pressable
-      onPress={() => router.push(`/artwork/${art.id}`)}
-      onPressIn={pressIn}
-      onPressOut={pressOut}
-      style={[styles.slot, { left: slot.x, top: slot.y }]}
+    <Animated.View
+      style={[
+        styles.cardWrap,
+        {
+          left,
+          top: top_,
+          width: CELL,
+          height: CELL,
+          transform: [{ scale }],
+          zIndex: top ? 999 : 1,
+          elevation: top ? 20 : 2,
+        },
+      ]}
     >
-      <Animated.View
-        style={[
-          styles.card,
-          { width: slot.w, height: slot.h, transform: [{ scale }] },
-        ]}
+      <Pressable
+        style={styles.card}
+        onPress={() => router.push(`/artwork/${art.id}`)}
       >
         {photo ? (
           <Image
             source={{ uri: art.imageUrl }}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
-            transition={200}
+            transition={120}
+            cachePolicy="memory-disk"
           />
         ) : (
-          // 写真を使わないジャンル(音楽・文章・デジタル・その他)は
-          // グラデーション背景 + 中央アイコンで表現する。
           <LinearGradient
             colors={meta.gradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={[StyleSheet.absoluteFill, styles.gradientCard]}
           >
-            {/* 絵画はブラシ跡/色面のオーバーレイでキャンバス感を出す */}
-            {meta.visual === "paint" ? (
-              <View style={StyleSheet.absoluteFill} pointerEvents="none">
-                <View style={[styles.stroke, styles.strokeA, { backgroundColor: meta.accent }]} />
-                <View style={[styles.stroke, styles.strokeB]} />
-                <View style={[styles.stroke, styles.strokeC, { backgroundColor: meta.accent }]} />
-              </View>
-            ) : null}
-
-            {meta.visual === "text" && large ? (
-              <Text style={styles.snippet} numberOfLines={3}>
-                {art.description}
-              </Text>
-            ) : (
-              <Icon size={iconSize} color={meta.accent} />
-            )}
+            <Icon size={CELL * 0.3} color={meta.accent} />
           </LinearGradient>
         )}
 
-        {/* 映像/パフォーマンスは中央に再生アイコン(大きめカードのみ) */}
-        {photo && meta.visual === "video" && large ? (
+        {photo && meta.visual === "video" ? (
           <View style={styles.playWrap} pointerEvents="none">
             <View style={styles.playCircle}>
-              <Play size={16} color={colors.text} fill={colors.text} />
+              <Play size={13} color={colors.text} fill={colors.text} />
             </View>
           </View>
         ) : null}
 
-        {large ? (
+        {top ? (
           <LinearGradient
-            colors={["transparent", "rgba(0,0,0,0.78)"]}
+            colors={["transparent", "rgba(0,0,0,0.85)"]}
             style={styles.caption}
           >
             <Text style={styles.capTitle} numberOfLines={1}>
               {art.title}
             </Text>
-            <Text style={styles.capName} numberOfLines={1}>
-              {art.creatorName}
+            <Text style={styles.capGenre} numberOfLines={1}>
+              {art.genre}
             </Text>
           </LinearGradient>
         ) : null}
 
-        {/* ジャンルバッジ(右上・半透明・全カード共通) */}
+        {/* ジャンルバッジ(右上・全カード共通) */}
         <View style={styles.genreBadge}>
-          <Icon size={10} color={meta.accent} />
-          {large ? (
-            <Text style={[styles.genreBadgeText, { color: meta.accent }]} numberOfLines={1}>
-              {art.genre}
-            </Text>
-          ) : null}
+          <Icon size={9} color={meta.accent} />
         </View>
-      </Animated.View>
-    </Pressable>
+      </Pressable>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  canvas: {
+  root: {
+    flex: 1,
     width: "100%",
-    position: "relative",
+    overflow: "hidden",
   },
-  slot: {
+  cardWrap: {
     position: "absolute",
   },
   card: {
-    borderRadius: radius.md,
+    flex: 1,
+    borderRadius: 22,
     overflow: "hidden",
     backgroundColor: colors.glass,
     borderColor: colors.border,
     borderWidth: 1,
   },
+  gradientCard: { alignItems: "center", justifyContent: "center" },
   caption: {
     position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
-    paddingHorizontal: 8,
-    paddingTop: 14,
-    paddingBottom: 6,
+    paddingHorizontal: 6,
+    paddingTop: 12,
+    paddingBottom: 5,
   },
-  capTitle: { color: colors.text, fontSize: 11, fontWeight: "700" },
-  capName: { color: colors.textDim, fontSize: 9 },
-  gradientCard: { alignItems: "center", justifyContent: "center", padding: 8 },
-  // 絵画カードのブラシ跡(回転した半透明バー)
-  stroke: { position: "absolute", borderRadius: 999, opacity: 0.35 },
-  strokeA: { top: "22%", left: "-10%", width: "75%", height: 18, transform: [{ rotate: "-12deg" }] },
-  strokeB: {
-    top: "52%",
-    left: "12%",
-    width: "85%",
-    height: 14,
-    backgroundColor: "rgba(255,255,255,0.5)",
-    transform: [{ rotate: "8deg" }],
-  },
-  strokeC: { top: "70%", left: "-6%", width: "60%", height: 12, transform: [{ rotate: "-5deg" }] },
-  snippet: {
-    color: colors.text,
-    fontSize: 12,
-    fontWeight: "700",
-    lineHeight: 18,
-    textAlign: "center",
-  },
+  capTitle: { color: colors.text, fontSize: 11, fontWeight: "800" },
+  capGenre: { color: colors.textDim, fontSize: 8.5 },
   playWrap: {
     position: "absolute",
     top: 0,
@@ -274,8 +358,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   playCircle: {
-    width: 34,
-    height: 34,
+    width: 26,
+    height: 26,
     borderRadius: 999,
     backgroundColor: "rgba(0,0,0,0.45)",
     borderWidth: 1,
@@ -283,19 +367,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  // ジャンルバッジ(右上・半透明)
   genreBadge: {
     position: "absolute",
     top: 6,
     right: 6,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    maxWidth: "85%",
-    paddingHorizontal: 6,
-    paddingVertical: 3,
+    width: 20,
+    height: 20,
     borderRadius: 999,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
   },
-  genreBadgeText: { fontSize: 9, fontWeight: "700" },
 });
