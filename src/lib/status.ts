@@ -156,9 +156,11 @@ export function statusProgress(count: number, level: StatusLevel): StatusProgres
   };
 }
 
-// MVP: 実データが無いためモック値を返す(後で実カウントに差し替える窓口)。
+// 表現ステータスは実データ(PostsContext の投稿数)を渡して計算する。
+// 発掘ステータスは現状ユーザー行動の集計ストアが無いため、既定はモック値(120)。
+// 後で DiscoveryContext を作ったら discoveryCount に実値を渡すだけでよい。
 export function getSenseedStatus(
-  expressionCount = 6,
+  expressionCount = 0,
   discoveryCount = 120,
 ): SenseedStatus {
   return {

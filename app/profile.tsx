@@ -34,6 +34,7 @@ import {
   type StatusLevel,
 } from "@/lib/status";
 import { useLanguage } from "@/context/LanguageContext";
+import { usePosts } from "@/context/PostsContext";
 import { useProfile } from "@/context/ProfileContext";
 import { useAuth } from "@/context/AuthContext";
 import { formatCount } from "@/lib/format";
@@ -70,8 +71,10 @@ export default function ProfileScreen() {
   const pinCandidates: Artwork[] = [FEATURED_ARTWORK, ...myWorks];
   const [pinned, setPinned] = useState<Artwork>(FEATURED_ARTWORK);
   const [pinPickerOpen, setPinPickerOpen] = useState(false);
-  // Senseed Status(MVP・モック値)。投稿=表現、発掘ポイント=発掘。
-  const status = getSenseedStatus();
+  // Senseed Status。
+  // 表現=実データ(投稿数: PostsContext)。発掘=モック値(実集計ストアが未実装のため)。
+  const { posts } = usePosts();
+  const status = getSenseedStatus(posts.length);
 
   return (
     <View style={styles.root}>
