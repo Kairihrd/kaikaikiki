@@ -1,43 +1,86 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  BadgeCheck,
-  Bell,
+  Check,
   Heart,
+  LogOut,
   MessageCircle,
   Settings,
   Users,
+  X,
 } from "lucide-react-native";
 import ScreenGlow from "@/components/ScreenGlow";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import GlassCard from "@/components/GlassCard";
 import StatCard from "@/components/StatCard";
-import Tag from "@/components/Tag";
 import {
   FEATURED_ARTWORK,
   FEATURED_CREATOR,
   getTodaysArtworks,
+  type Artwork,
 } from "@/lib/mockData";
+import { genreMeta } from "@/lib/genre";
+import {
+  getSenseedStatus,
+  statusProgress,
+  STATUS_TAGLINE,
+  STATUS_UNIT,
+  type StatusKind,
+  type StatusLevel,
+} from "@/lib/status";
+import { useLanguage } from "@/context/LanguageContext";
+import { usePosts } from "@/context/PostsContext";
+import { useProfile } from "@/context/ProfileContext";
+import { useAuth } from "@/context/AuthContext";
 import { formatCount } from "@/lib/format";
 import { colors, gradient, radius } from "@/lib/theme";
 
-const PROFILE_TABS = ["作品", "いいね", "コメント", "下書き"];
+const PROFILE_TAB_KEYS = [
+  "profile.tabWorks",
+  "profile.tabLikes",
+  "profile.tabComments",
+  "profile.tabDrafts",
+];
 
 // 5. マイページ
 export default function ProfileScreen() {
+  const { t } = useLanguage();
+  const { profile } = useProfile();
+  const { signOut } = useAuth();
   const me = FEATURED_CREATOR;
-  const pinned = FEATURED_ARTWORK;
+
+  const confirmLogout = () =>
+    Alert.alert(t("auth.logout"), t("auth.logoutConfirm"), [
+      { text: "キャンセル", style: "cancel" },
+      { text: t("auth.logout"), style: "destructive", onPress: () => signOut() },
+    ]);
+  // 保存済みプロフィールがあれば優先。無ければ i18n / mock の既定値。
+  const displayName = profile.name ?? t("profile.name");
+  const displayBio = profile.bio ?? t("profile.bio");
+  const avatarSource = profile.avatarUri
+    ? { uri: profile.avatarUri }
+    : { uri: me.avatarUrl };
   const myWorks = getTodaysArtworks().slice(1, 13);
+  // 「ビルボードに表示される自信作」は自分で設定する(ローカルstateで差し替え)。
+  // 候補は featured + 自分の作品。DB保存はしない。
+  const pinCandidates: Artwork[] = [FEATURED_ARTWORK, ...myWorks];
+  const [pinned, setPinned] = useState<Artwork>(FEATURED_ARTWORK);
+  const [pinPickerOpen, setPinPickerOpen] = useState(false);
+  // Senseed Status。
+  // 表現=実データ(投稿数: PostsContext)。発掘=モック値(実集計ストアが未実装のため)。
+  const { posts } = usePosts();
+  const status = getSenseedStatus(posts.length);
 
   return (
     <View style={styles.root}>
       <ScreenGlow />
       <SafeAreaView edges={["top"]} style={styles.safe}>
-        <AppHeader subtitle="マイページ" showProfile={false} showMenu />
+        <AppHeader subtitle={t("header.profile")} showProfile={false} />
 
         <ScrollView
           contentContainerStyle={styles.content}
@@ -46,38 +89,57 @@ export default function ProfileScreen() {
           {/* プロフィール */}
           <View style={styles.profile}>
             <LinearGradient colors={gradient.brand} style={styles.avatarRing}>
-              <Image source={{ uri: me.avatarUrl }} style={styles.avatar} contentFit="cover" />
+              <Image source={avatarSource} style={styles.avatar} contentFit="cover" />
             </LinearGradient>
             <View style={styles.nameRow}>
-              <Text style={styles.name}>{me.name}</Text>
-              <BadgeCheck size={20} color={colors.cyan} />
+              <Text style={styles.name}>{displayName}</Text>
             </View>
             <Text style={styles.handle}>{me.handle}</Text>
-            <Text style={styles.bio}>光の先にあるものを、想像してみる。</Text>
-            <Text style={styles.meta}>19歳・東京　写真家 / 大学生</Text>
-            <View style={styles.tagRow}>
-              {["#写真", "#建築", "#モノクロ", "#光と影"].map((t) => (
-                <Tag key={t} label={t} />
-              ))}
-            </View>
-            <Pressable style={styles.editButton}>
-              <Text style={styles.editText}>プロフィールを編集</Text>
+            <Text style={styles.bio}>{displayBio}</Text>
+            <Text style={styles.meta}>
+              {t("profile.age19")}・{t("profile.tokyo")}　{t("profile.photographer")} / {t("profile.student")}
+            </Text>
+            <Pressable
+              style={styles.editButton}
+              onPress={() => router.push("/profile/edit")}
+            >
+              <Text style={styles.editText}>{t("profile.editProfile")}</Text>
             </Pressable>
           </View>
 
-          {/* ステータスカード */}
+          {/* ステータスカード(サポーターカードはタップで /supporting へ) */}
           <View style={styles.stats}>
-            <StatCard style={styles.statItem} value={formatCount(me.supporterCount)} label="サポーター" />
-            <StatCard style={styles.statItem} value="328" label="いいねした作品" />
+            <Pressable style={styles.statItem} onPress={() => router.push("/supporting")}>
+              <StatCard value={formatCount(me.supporterCount)} label={t("profile.supportersStat")} />
+            </Pressable>
+            <StatCard style={styles.statItem} value="328" label={t("profile.likedWorks")} />
           </View>
           <View style={styles.stats}>
-            <StatCard style={styles.statItem} value="56" label="コメントした数" />
-            <StatCard style={styles.statItem} value="12" label="コレクション" />
+            <StatCard style={styles.statItem} value="56" label={t("profile.commentsStat")} />
+            <StatCard style={styles.statItem} value="12" label={t("profile.collections")} />
           </View>
 
-          {/* 固定作品 */}
+          {/* Senseed Status(行動で伸びる2つのステータス) */}
+          <View style={styles.statusSection}>
+            <Text style={styles.statusHeading}>Senseed Status</Text>
+            <StatusCard
+              kind="expression"
+              level={status.expressionLevel}
+              count={status.expressionCount}
+            />
+            <StatusCard
+              kind="discovery"
+              level={status.discoveryLevel}
+              count={status.discoveryCount}
+            />
+          </View>
+
+          {/* 固定作品(自分で設定する自信作) */}
           <View>
-            <Text style={styles.sectionTitle}>ビルボードに表示される自信作</Text>
+            <Text style={styles.sectionTitle}>{t("profile.featuredTitle")}</Text>
+            <Text style={styles.sectionDesc}>
+              {t("profile.featuredDesc")}
+            </Text>
             <GlassCard style={styles.pinned}>
               <Image source={{ uri: pinned.imageUrl }} style={styles.pinnedImage} contentFit="cover" />
               <View style={styles.pinnedBody}>
@@ -93,8 +155,11 @@ export default function ProfileScreen() {
                     <Text style={styles.pinnedStatText}>{pinned.comments}</Text>
                   </View>
                 </View>
-                <Pressable style={styles.pinButton}>
-                  <Text style={styles.pinButtonText}>ピンを変更する</Text>
+                <Pressable
+                  style={styles.pinButton}
+                  onPress={() => setPinPickerOpen(true)}
+                >
+                  <Text style={styles.pinButtonText}>{t("profile.setFeatured")}</Text>
                 </Pressable>
               </View>
             </GlassCard>
@@ -102,41 +167,101 @@ export default function ProfileScreen() {
 
           {/* タブ */}
           <View style={styles.tabs}>
-            {PROFILE_TABS.map((tab, i) => (
+            {PROFILE_TAB_KEYS.map((tabKey, i) => (
               <Pressable
-                key={tab}
+                key={tabKey}
                 style={[styles.tab, i === 0 ? styles.tabActive : styles.tabInactive]}
               >
                 <Text style={[styles.tabText, i === 0 && styles.tabTextActive]}>
-                  {tab}
+                  {t(tabKey)}
                 </Text>
               </Pressable>
             ))}
           </View>
 
-          {/* 自分の作品グリッド */}
+          {/* 自分の作品グリッド(ジャンルバッジ付き) */}
           <View style={styles.grid}>
-            {myWorks.map((art) => (
-              <Pressable
-                key={art.id}
-                style={styles.gridItem}
-                onPress={() => router.push(`/artwork/${art.id}`)}
-              >
-                <Image source={{ uri: art.imageUrl }} style={styles.gridImage} contentFit="cover" />
-              </Pressable>
-            ))}
+            {myWorks.map((art) => {
+              const meta = genreMeta(art.genre);
+              const GenreIcon = meta.Icon;
+              return (
+                <Pressable
+                  key={art.id}
+                  style={styles.gridItem}
+                  onPress={() => router.push(`/artwork/${art.id}`)}
+                >
+                  <Image source={{ uri: art.imageUrl }} style={styles.gridImage} contentFit="cover" />
+                  <View style={styles.gridBadge}>
+                    <GenreIcon size={11} color={meta.accent} />
+                  </View>
+                </Pressable>
+              );
+            })}
           </View>
 
           {/* 下部メニュー */}
           <View style={styles.menu}>
-            <MenuRow icon={<Users size={20} color={colors.textDim} />} label="サポーターになってくれた人" onPress={() => router.push("/supporting")} />
-            <MenuRow icon={<MessageCircle size={20} color={colors.textDim} />} label="メッセージ" />
-            <MenuRow icon={<Settings size={20} color={colors.textDim} />} label="アカウント設定" />
-            <MenuRow icon={<Bell size={20} color={colors.textDim} />} label="お知らせ" />
+            <MenuRow icon={<Users size={20} color={colors.textDim} />} label={t("profile.supporters")} onPress={() => router.push("/supporting")} />
+            <MenuRow icon={<Settings size={20} color={colors.textDim} />} label={t("profile.accountSettings")} onPress={() => router.push("/settings")} />
           </View>
+
+          {/* ログアウト(一番下・危険操作っぽい赤系) */}
+          <Pressable style={styles.logout} onPress={confirmLogout}>
+            <LogOut size={18} color={colors.pink} />
+            <Text style={styles.logoutText}>{t("auth.logout")}</Text>
+          </Pressable>
         </ScrollView>
       </SafeAreaView>
       <BottomNav />
+
+      {/* 自信作ピッカー(自分の作品から1つ選ぶ簡易モーダル) */}
+      <Modal
+        visible={pinPickerOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPinPickerOpen(false)}
+      >
+        <Pressable style={styles.backdrop} onPress={() => setPinPickerOpen(false)}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>{t("profile.setFeatured")}</Text>
+              <Pressable onPress={() => setPinPickerOpen(false)} accessibilityLabel="閉じる">
+                <X size={22} color={colors.textDim} />
+              </Pressable>
+            </View>
+            <Text style={styles.sheetSub}>
+              {t("profile.featuredDesc")}
+            </Text>
+
+            <ScrollView style={styles.sheetList} showsVerticalScrollIndicator={false}>
+              {pinCandidates.map((art) => {
+                const active = art.id === pinned.id;
+                return (
+                  <Pressable
+                    key={art.id}
+                    style={[styles.pickRow, active && styles.pickRowActive]}
+                    onPress={() => {
+                      setPinned(art);
+                      setPinPickerOpen(false);
+                    }}
+                  >
+                    <Image source={{ uri: art.imageUrl }} style={styles.pickThumb} contentFit="cover" />
+                    <View style={styles.pickInfo}>
+                      <Text style={styles.pickTitle} numberOfLines={1}>
+                        {art.title}
+                      </Text>
+                      <Text style={styles.pickMeta} numberOfLines={1}>
+                        {art.genre}・♥ {formatCount(art.likes)}
+                      </Text>
+                    </View>
+                    {active ? <Check size={18} color={colors.cyan} /> : null}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -160,9 +285,80 @@ function MenuRow({
   );
 }
 
+const STATUS_META: Record<StatusKind, { emoji: string; label: string }> = {
+  expression: { emoji: "🌱", label: "表現ステータス" },
+  discovery: { emoji: "🔍", label: "発掘ステータス" },
+};
+
+// Senseed Status の1カード(画像 + レベル + 進捗バー + 現在値/次の目標 + 一言)。
+function StatusCard({
+  kind,
+  level,
+  count,
+}: {
+  kind: StatusKind;
+  level: StatusLevel;
+  count: number;
+}) {
+  const prog = statusProgress(count, level);
+  const meta = STATUS_META[kind];
+  return (
+    <GlassCard style={styles.statusCard}>
+      <Image source={level.image} style={styles.statusImage} contentFit="cover" />
+      <View style={styles.statusBody}>
+        <Text style={styles.statusKind}>
+          {meta.emoji} {meta.label}
+        </Text>
+        <Text style={styles.statusLevel}>
+          Lv.{level.level} {level.name}
+        </Text>
+        <View style={styles.statusBarTrack}>
+          <View
+            style={[styles.statusBarFill, { width: `${Math.round(prog.ratio * 100)}%` }]}
+          />
+        </View>
+        <Text style={styles.statusProgressText}>
+          {prog.isMax
+            ? "最大レベル"
+            : `${STATUS_UNIT[kind]} ${prog.current} / 次のレベルまで ${prog.remaining}`}
+        </Text>
+        <Text style={styles.statusDesc} numberOfLines={2}>
+          「{STATUS_TAGLINE[kind]}」
+        </Text>
+      </View>
+    </GlassCard>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   safe: { flex: 1 },
+
+  // Senseed Status
+  statusSection: { gap: 10 },
+  statusHeading: { color: colors.text, fontSize: 16, fontWeight: "800", marginBottom: 2 },
+  statusCard: { flexDirection: "row", alignItems: "center", gap: 14, padding: 14 },
+  statusImage: {
+    width: 72,
+    height: 72,
+    borderRadius: 999,
+    backgroundColor: "#0a0a0a",
+    borderColor: "rgba(101,212,110,0.4)",
+    borderWidth: 1,
+  },
+  statusBody: { flex: 1, gap: 5 },
+  statusKind: { color: colors.text, fontSize: 13, fontWeight: "700" },
+  statusLevel: { color: "#86efac", fontSize: 15, fontWeight: "800" },
+  statusBarTrack: {
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    overflow: "hidden",
+    marginTop: 2,
+  },
+  statusBarFill: { height: "100%", borderRadius: 999, backgroundColor: "#4ade80" },
+  statusProgressText: { color: colors.textDim, fontSize: 12 },
+  statusDesc: { color: colors.textFaint, fontSize: 11, lineHeight: 16 },
   content: { paddingHorizontal: 16, paddingBottom: 130, gap: 18 },
   profile: { alignItems: "center", paddingTop: 6 },
   avatarRing: { borderRadius: 999, padding: 3 },
@@ -185,7 +381,8 @@ const styles = StyleSheet.create({
   editText: { color: colors.text, fontSize: 14, fontWeight: "600" },
   stats: { flexDirection: "row", gap: 12 },
   statItem: { flex: 1 },
-  sectionTitle: { color: colors.textDim, fontSize: 14, fontWeight: "700", marginBottom: 12 },
+  sectionTitle: { color: colors.textDim, fontSize: 14, fontWeight: "700", marginBottom: 4 },
+  sectionDesc: { color: colors.textFaint, fontSize: 12, marginBottom: 12 },
   pinned: { overflow: "hidden" },
   pinnedImage: { width: "100%", height: 200 },
   pinnedBody: { padding: 18 },
@@ -218,7 +415,70 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   gridImage: { width: "100%", height: "100%" },
+  gridBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   menu: { gap: 10 },
   menuRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16 },
   menuLabel: { color: colors.text, fontSize: 14, fontWeight: "600" },
+  logout: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 4,
+    paddingVertical: 14,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: "rgba(236,72,153,0.4)",
+    backgroundColor: "rgba(236,72,153,0.08)",
+  },
+  logoutText: { color: colors.pink, fontSize: 14, fontWeight: "700" },
+
+  // 自信作ピッカー(モーダル)
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    backgroundColor: "#0c0c0f",
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    borderColor: colors.border,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 36,
+    maxHeight: "75%",
+  },
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  sheetTitle: { color: colors.text, fontSize: 16, fontWeight: "800" },
+  sheetSub: { color: colors.textDim, fontSize: 12, marginTop: 6, marginBottom: 8 },
+  sheetList: { marginTop: 4 },
+  pickRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: radius.md,
+  },
+  pickRowActive: { backgroundColor: colors.glassStrong },
+  pickThumb: { width: 52, height: 52, borderRadius: radius.md },
+  pickInfo: { flex: 1 },
+  pickTitle: { color: colors.text, fontSize: 14, fontWeight: "700" },
+  pickMeta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
 });

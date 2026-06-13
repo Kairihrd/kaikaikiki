@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Billdist",
-    "slug": "billdist",
-    "scheme": "billdist",
+    "name": "Senseed",
+    "slug": "senseed",
+    "scheme": "senseed",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -10,13 +10,14 @@
     "backgroundColor": "#000000",
     "newArchEnabled": true,
     "ios": {
+      "bundleIdentifier": "com.senseed.app",
+      "buildNumber": "1",
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#000000",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false
@@ -24,6 +25,21 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-router", "expo-image"]
+    "plugins": [
+      "expo-router",
+      "expo-image",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "プロフィール画像や作品の投稿に、写真ライブラリへのアクセスを使用します。"
+        }
+      ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f500e47b-d80a-439c-98ac-151359c3cc2d"
+      }
+    }
   }
 }

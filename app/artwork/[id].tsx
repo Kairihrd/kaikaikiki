@@ -1,6 +1,17 @@
-import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Heart,
@@ -19,6 +30,7 @@ import {
   getArtworkById,
   getCommentsForArtwork,
   getCreatorByHandle,
+  type Comment,
 } from "@/lib/mockData";
 import { formatCount } from "@/lib/format";
 import { colors, radius } from "@/lib/theme";
@@ -28,7 +40,59 @@ export default function ArtworkDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const artwork = getArtworkById(id ?? "1") ?? getArtworkById("1")!;
   const creator = getCreatorByHandle(artwork.creatorHandle);
-  const comments = getCommentsForArtwork(artwork.id);
+
+  const scrollRef = useRef<ScrollView>(null);
+  const [liked, setLiked] = useState(false);
+  const [supporting, setSupporting] = useState(false);
+  // 既定(モック)コメント + ユーザー追加コメント(作品IDごとに AsyncStorage 保存)。
+  const seedComments = useMemo(
+    () => getCommentsForArtwork(artwork.id),
+    [artwork.id],
+  );
+  const [userComments, setUserComments] = useState<Comment[]>([]);
+  const comments = [...seedComments, ...userComments];
+  const [draft, setDraft] = useState("");
+  const commentsKey = `senseed:comments:${artwork.id}`;
+
+  // 保存済みのユーザーコメントを復元(離脱して戻っても残る)。
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(commentsKey);
+        if (raw) setUserComments(JSON.parse(raw));
+        else setUserComments([]);
+      } catch {
+        setUserComments([]);
+      }
+    })();
+  }, [commentsKey]);
+
+  const likeCount = artwork.likes + (liked ? 1 : 0);
+
+  const onShare = async () => {
+    try {
+      await Share.share({
+        message: `${artwork.title} / ${creator.name} — senseed`,
+      });
+    } catch {
+      Alert.alert("シェア", "共有しました");
+    }
+  };
+
+  const onAskAi = () =>
+    Alert.alert(
+      "AIによる作品解説",
+      "この作品は、静けさ・光・空間性が特徴です。被写体の余白と境界の表現から、見る人の想像に委ねる構成になっています。",
+    );
+
+  const onSendComment = () => {
+    const body = draft.trim();
+    if (!body) return;
+    const next = [...userComments, { id: `me-${Date.now()}`, handle: "you", body }];
+    setUserComments(next);
+    AsyncStorage.setItem(commentsKey, JSON.stringify(next)).catch(() => {});
+    setDraft("");
+  };
 
   return (
     <View style={styles.root}>
@@ -37,6 +101,7 @@ export default function ArtworkDetailScreen() {
         <AppHeader subtitle="Today's 100" showBack showProfile={false} showMenu centerTitle />
 
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
@@ -57,20 +122,46 @@ export default function ArtworkDetailScreen() {
             </View>
 
             <View style={styles.supportRow}>
-              <GradientButton label="サポーターになる" style={styles.flex1} />
+              <GradientButton
+                label={supporting ? "サポーター中" : "サポーターになる"}
+                variant={supporting ? "ring" : "solid"}
+                onPress={() => setSupporting((v) => !v)}
+                style={styles.flex1}
+              />
               <Text style={styles.supportCount}>
-                {formatCount(creator.supporterCount)}
+                {formatCount(creator.supporterCount + (supporting ? 1 : 0))}
               </Text>
             </View>
 
-            <View style={styles.msgButton}>
+            <Pressable
+              style={styles.msgButton}
+              onPress={() => router.push("/messages")}
+            >
               <Text style={styles.msgText}>メッセージを送る</Text>
-            </View>
+            </Pressable>
 
             <View style={styles.statsRow}>
-              <Stat icon={<Heart size={20} color={colors.textDim} />} label={formatCount(artwork.likes)} />
-              <Stat icon={<MessageCircle size={20} color={colors.textDim} />} label={formatCount(artwork.comments)} />
-              <Stat icon={<Share2 size={20} color={colors.textDim} />} label="シェア" />
+              <Stat
+                icon={
+                  <Heart
+                    size={20}
+                    color={liked ? colors.pink : colors.textDim}
+                    fill={liked ? colors.pink : "transparent"}
+                  />
+                }
+                label={formatCount(likeCount)}
+                onPress={() => setLiked((v) => !v)}
+              />
+              <Stat
+                icon={<MessageCircle size={20} color={colors.textDim} />}
+                label={formatCount(comments.length)}
+                onPress={() => scrollRef.current?.scrollToEnd({ animated: true })}
+              />
+              <Stat
+                icon={<Share2 size={20} color={colors.textDim} />}
+                label="シェア"
+                onPress={onShare}
+              />
             </View>
           </GlassCard>
 
@@ -88,7 +179,7 @@ export default function ArtworkDetailScreen() {
 
           {/* 情報カード */}
           <GlassCard style={styles.infoCard}>
-            <Row label="ジャンル" value="写真・デジタルアート" />
+            <Row label="ジャンル" value={artwork.genre} />
             <Row label="テーマ" value={artwork.theme} />
             <Text style={styles.infoLabel}>AIが見出したキーワード</Text>
             <View style={styles.tagRow}>
@@ -99,14 +190,14 @@ export default function ArtworkDetailScreen() {
           </GlassCard>
 
           {/* AI質問ボタン */}
-          <View style={styles.aiButton}>
+          <Pressable style={styles.aiButton} onPress={onAskAi}>
             <Sparkles size={16} color={colors.cyan} />
             <Text style={styles.aiText}>AIに作品について質問する</Text>
-          </View>
+          </Pressable>
 
           {/* コメント欄 */}
           <View>
-            <Text style={styles.commentHeading}>コメント {artwork.comments}</Text>
+            <Text style={styles.commentHeading}>コメント {comments.length}</Text>
             <View style={styles.commentList}>
               {comments.map((c) => (
                 <GlassCard key={c.id} style={styles.commentCard}>
@@ -116,14 +207,20 @@ export default function ArtworkDetailScreen() {
               ))}
             </View>
 
-            {/* コメント入力(見た目のみ) */}
+            {/* コメント入力 */}
             <View style={styles.commentInput}>
               <TextInput
+                value={draft}
+                onChangeText={setDraft}
+                onSubmitEditing={onSendComment}
                 placeholder="コメントを追加…"
                 placeholderTextColor={colors.textFaint}
                 style={styles.input}
+                returnKeyType="send"
               />
-              <Send size={20} color={colors.cyan} />
+              <Pressable onPress={onSendComment} accessibilityLabel="コメントを送信">
+                <Send size={20} color={colors.cyan} />
+              </Pressable>
             </View>
           </View>
         </ScrollView>
@@ -133,12 +230,23 @@ export default function ArtworkDetailScreen() {
   );
 }
 
-function Stat({ icon, label }: { icon: React.ReactNode; label: string }) {
+function Stat({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onPress?: () => void;
+}) {
   return (
-    <View style={styles.stat}>
+    <Pressable
+      style={({ pressed }) => [styles.stat, pressed && styles.statPressed]}
+      onPress={onPress}
+    >
       {icon}
       <Text style={styles.statLabel}>{label}</Text>
-    </View>
+    </Pressable>
   );
 }
 
@@ -194,7 +302,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     paddingTop: 14,
   },
-  stat: { alignItems: "center", gap: 4 },
+  stat: { alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 4 },
+  statPressed: { opacity: 0.6 },
   statLabel: { color: colors.textDim, fontSize: 12 },
   title: { color: colors.text, fontSize: 24, fontWeight: "800" },
   postedAt: { color: colors.textFaint, fontSize: 12, marginTop: 4 },

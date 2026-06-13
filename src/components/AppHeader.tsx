@@ -1,29 +1,33 @@
-import { Image } from "expo-image";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { router } from "expo-router";
-import { ArrowLeft, Bell, MoreHorizontal, Search } from "lucide-react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { router, usePathname } from "expo-router";
+import { ArrowLeft, Bell, MessageCircle, MoreHorizontal } from "lucide-react-native";
 import IconButton from "./IconButton";
+import { useNotifications } from "@/context/NotificationContext";
 import { colors } from "@/lib/theme";
 
 interface AppHeaderProps {
   subtitle?: string;
   showBack?: boolean;
+  /** @deprecated 右上のユーザーアイコンは廃止。互換のため受け取るが使用しない */
   showProfile?: boolean;
   showMenu?: boolean;
   /** タイトルを中央に置く(作品詳細など) */
   centerTitle?: boolean;
 }
 
-const AVATAR = "https://picsum.photos/seed/billdist-avatar-kanata/100/100";
-
 // 全画面共通の上部ヘッダー。SafeAreaは各画面のSafeAreaView側で確保する。
+// 右上は「通知 + DM(メッセージ)」。ユーザーアイコン/検索アイコンは表示しない。
 export default function AppHeader({
   subtitle,
   showBack = false,
-  showProfile = true,
   showMenu = false,
   centerTitle = false,
 }: AppHeaderProps) {
+  const pathname = usePathname();
+  const { unreadCount, dmUnread } = useNotifications();
+  // DM(メッセージ)画面にいるときは DM アイコンを出さない(それ以外では押せる)。
+  const onDM = pathname.startsWith("/messages");
+
   return (
     <View style={styles.header}>
       {/* 左 */}
@@ -35,7 +39,12 @@ export default function AppHeader({
         ) : null}
         {!centerTitle ? (
           <Pressable onPress={() => router.push("/")}>
-            <Text style={styles.logo}>Billdist</Text>
+            <Image
+              source={require("../../assets/logo-wide.png")}
+              style={styles.logoImg}
+              resizeMode="contain"
+              accessibilityLabel="senseed"
+            />
             {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
           </Pressable>
         ) : null}
@@ -44,31 +53,42 @@ export default function AppHeader({
       {/* 中央タイトル */}
       {centerTitle ? (
         <View style={styles.center}>
-          <Text style={styles.logo}>Billdist</Text>
+          <Image
+            source={require("../../assets/logo-wide.png")}
+            style={styles.logoImg}
+            resizeMode="contain"
+            accessibilityLabel="senseed"
+          />
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
       ) : null}
 
-      {/* 右 */}
+      {/* 右: 通知 + DM(+ メニュー)。未読は赤丸バッジ。 */}
       <View style={styles.side}>
-        <IconButton accessibilityLabel="検索">
-          <Search size={20} color={colors.text} />
-        </IconButton>
-        <IconButton accessibilityLabel="通知">
-          <Bell size={20} color={colors.text} />
-        </IconButton>
+        <View>
+          <IconButton
+            accessibilityLabel="通知"
+            onPress={() => router.push("/notifications")}
+          >
+            <Bell size={20} color={colors.text} />
+          </IconButton>
+          {unreadCount > 0 ? <View style={styles.badge} /> : null}
+        </View>
+        {!onDM ? (
+          <View>
+            <IconButton
+              accessibilityLabel="メッセージ"
+              onPress={() => router.push("/messages")}
+            >
+              <MessageCircle size={20} color={colors.text} />
+            </IconButton>
+            {dmUnread > 0 ? <View style={styles.badge} /> : null}
+          </View>
+        ) : null}
         {showMenu ? (
           <IconButton accessibilityLabel="メニュー">
             <MoreHorizontal size={20} color={colors.text} />
           </IconButton>
-        ) : null}
-        {showProfile ? (
-          <Pressable
-            onPress={() => router.push("/profile")}
-            accessibilityLabel="マイページ"
-          >
-            <Image source={{ uri: AVATAR }} style={styles.avatar} contentFit="cover" />
-          </Pressable>
         ) : null}
       </View>
     </View>
@@ -92,22 +112,26 @@ const styles = StyleSheet.create({
   center: {
     alignItems: "center",
   },
-  logo: {
-    color: colors.text,
-    fontSize: 20,
-    fontWeight: "800",
-    letterSpacing: -0.5,
+  // 横長 SENSEED ロゴ画像(透過PNG)。黒背景に馴染む。右側アイコンに被らないサイズ。
+  logoImg: {
+    width: 100,
+    height: 36,
   },
   subtitle: {
     color: colors.textFaint,
     fontSize: 11,
     marginTop: -1,
   },
-  avatar: {
-    width: 40,
-    height: 40,
+  // 未読バッジ(赤丸)
+  badge: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 10,
+    height: 10,
     borderRadius: 999,
-    borderColor: colors.borderStrong,
-    borderWidth: 1,
+    backgroundColor: colors.pink,
+    borderWidth: 1.5,
+    borderColor: colors.bg,
   },
 });
