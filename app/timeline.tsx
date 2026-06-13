@@ -23,7 +23,6 @@ import {
   Frame,
   Heart,
   MessageCircle,
-  MoreVertical,
   Music,
   Package,
   Palette,
@@ -32,7 +31,6 @@ import {
   Share2,
   Shirt,
   Sparkles,
-  UserPlus,
 } from "lucide-react-native";
 import ScreenGlow from "@/components/ScreenGlow";
 import BottomNav from "@/components/BottomNav";
@@ -40,8 +38,10 @@ import IconButton from "@/components/IconButton";
 import Tag from "@/components/Tag";
 import {
   FEATURED_CREATOR,
-  getSupportingTimelinePosts,
+  getArtworkById,
+  getCreatorByHandle,
   getTimelinePosts,
+  getTodaysArtworks,
   type TimelineMedia,
   type TimelinePost,
 } from "@/lib/mockData";
@@ -49,10 +49,11 @@ import { usePosts } from "@/context/PostsContext";
 import { useProfile } from "@/context/ProfileContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { useLikes } from "@/context/LikesContext";
+import { useSupport } from "@/context/SupportContext";
 import { userPostToTimelinePost } from "@/lib/userPost";
 import { hapticLight } from "@/lib/haptics";
 import { formatCount } from "@/lib/format";
-import { colors, gradient } from "@/lib/theme";
+import { colors } from "@/lib/theme";
 
 // 画像が無い投稿でも「作品カード」に見せるためのデフォルトアート画像。
 // (アイコンだけのカードにせず、必ず画像をメイン面に表示する)
@@ -79,6 +80,29 @@ const GENRE_ICON: Record<TimelineMedia, React.ComponentType<{ size?: number; col
   dance: PersonStanding,
 };
 
+// 投稿カードから作品詳細へ安全に遷移する。
+//  1) 自分の投稿(me-*) or 実在作品ID → そのまま /artwork/[id]
+//  2) ハンドルから実在作品を解決 → /artwork/[id]
+//  3) 解決できなければ作者プロフィールへ(誤作品へ飛ばさない/無反応にしない)
+function openArtwork(post: TimelinePost) {
+  if (post.id.startsWith("me-") || getArtworkById(post.id)) {
+    router.push(`/artwork/${post.id}`);
+    return;
+  }
+  const art = getTodaysArtworks().find((a) => a.creatorHandle === post.username);
+  if (art) {
+    router.push(`/artwork/${art.id}`);
+    return;
+  }
+  if (post.username) router.push(`/creator/${encodeURIComponent(post.username)}`);
+}
+
+// 投稿者(アイコン/名前)→ クリエイタープロフィールへ遷移。
+function openCreator(post: TimelinePost) {
+  if (!post.username) return;
+  router.push(`/creator/${encodeURIComponent(post.username)}`);
+}
+
 // 3. タイムライン(TikTok風・1画面1作品の縦スワイプフィード)
 // タブで「おすすめ(全ジャンル)」「サポート中(応援クリエイター)」を切り替える。
 export default function TimelineScreen() {
@@ -89,6 +113,7 @@ export default function TimelineScreen() {
   const { profile } = useProfile();
   const { addLikeNotification, unreadCount, dmUnread } = useNotifications();
   const { isLiked, toggleLike } = useLikes();
+  const { supports } = useSupport();
 
   // ユーザー自身の「タイムライン投稿」だけを先頭に表示(ビルボード/テーマ投稿は除外)。
   const userTimeline = useMemo<TimelinePost[]>(
@@ -105,12 +130,35 @@ export default function TimelineScreen() {
     [userPosts, profile],
   );
 
+  // 「サポート中」タブ: 実際に自分がサポートした作品(SupportContext)をカード化する。
+  const supportTimeline = useMemo<TimelinePost[]>(
+    () =>
+      supports.map((s) => ({
+        id: s.id, // 実在作品ID(タップで作品詳細へ)
+        category: "サポート中",
+        title: s.artworkTitle ?? "作品",
+        creatorName: s.artistName ?? "クリエイター",
+        username: s.artistHandle ?? "",
+        avatarUrl: getCreatorByHandle(s.artistHandle ?? "").avatarUrl,
+        description: "",
+        tags: [],
+        likes: 0,
+        comments: 0,
+        soundLabel: "サポート中の作品",
+        mediaType: "image",
+        imageUrl: s.imageUrl ?? DEFAULT_TIMELINE_IMAGE,
+        gradient: ["#0b0d10", "#1c2026", "#05070a"],
+        accent: colors.cyan,
+      })),
+    [supports],
+  );
+
   const posts = useMemo<TimelinePost[]>(
     () =>
       activeTab === "おすすめ"
         ? [...userTimeline, ...getTimelinePosts()]
-        : getSupportingTimelinePosts(),
-    [activeTab, userTimeline],
+        : supportTimeline,
+    [activeTab, userTimeline, supportTimeline],
   );
 
   const switchTab = (tab: Tab) => {
@@ -173,6 +221,14 @@ export default function TimelineScreen() {
         windowSize={3}
         initialNumToRender={2}
         maxToRenderPerBatch={3}
+        ListEmptyComponent={
+          <View style={[styles.empty, { height }]}>
+            <Text style={styles.emptyText}>
+              まだサポートした作品はありません。{"\n"}
+              作品詳細の「サポートする」から応援できます。
+            </Text>
+          </View>
+        }
       />
 
       {/* 上部固定オーバーレイ: ロゴ + 検索/通知 + タブ + Today's 100 */}
@@ -274,15 +330,20 @@ function PostCard({
 
   return (
     <View style={[styles.card, { height }]}>
-      <PostMedia post={post} />
+      {/* 作品メディア(タップで作品詳細へ)。 */}
+      <Pressable style={StyleSheet.absoluteFill} onPress={() => openArtwork(post)}>
+        <PostMedia post={post} />
+      </Pressable>
 
       {/* 右側: 縦並びアクション(投稿ごとに表示) */}
       <View style={styles.actions}>
-        <Pressable style={styles.avatarWrap}>
+        {/* アイコン → クリエイタープロフィール */}
+        <Pressable
+          style={styles.avatarWrap}
+          onPress={() => openCreator(post)}
+          accessibilityLabel={`${post.creatorName} のプロフィール`}
+        >
           <Image source={{ uri: post.avatarUrl }} style={styles.avatar} contentFit="cover" />
-          <LinearGradient colors={gradient.brand} style={styles.followBadge}>
-            <UserPlus size={12} color={colors.text} />
-          </LinearGradient>
         </Pressable>
         <ActionButton
           icon={
@@ -295,25 +356,32 @@ function PostCard({
           label={formatCount(likeCount)}
           onPress={onLike}
         />
+        {/* コメント → 作品詳細(コメント欄) */}
         <ActionButton
           icon={<MessageCircle size={26} color={colors.text} />}
           label={formatCount(post.comments)}
+          onPress={() => openArtwork(post)}
         />
         <ActionButton
           icon={<Share2 size={26} color={colors.text} />}
           label="シェア"
           onPress={onShare}
         />
-        <ActionButton icon={<MoreVertical size={26} color={colors.text} />} />
       </View>
 
       {/* 左下: 作品情報 */}
       <View style={styles.info}>
         <Text style={styles.genre}>{post.category}</Text>
-        <Text style={styles.title}>{post.title}</Text>
-        <Text style={styles.creatorLine}>
-          {post.creatorName} <Text style={styles.handle}>{post.username}</Text>
-        </Text>
+        {/* タイトル → 作品詳細 */}
+        <Pressable onPress={() => openArtwork(post)}>
+          <Text style={styles.title}>{post.title}</Text>
+        </Pressable>
+        {/* 投稿者名/@ → クリエイタープロフィール */}
+        <Pressable onPress={() => openCreator(post)}>
+          <Text style={styles.creatorLine}>
+            {post.creatorName} <Text style={styles.handle}>{post.username}</Text>
+          </Text>
+        </Pressable>
         <Text style={styles.desc} numberOfLines={2}>
           {post.description}
         </Text>
@@ -597,6 +665,10 @@ const styles = StyleSheet.create({
   card: { width: "100%", backgroundColor: colors.bg },
   dim: { backgroundColor: "rgba(0,0,0,0.5)" },
 
+  // 「サポート中」が空のときの表示
+  empty: { alignItems: "center", justifyContent: "center", paddingHorizontal: 40 },
+  emptyText: { color: colors.textDim, fontSize: 14, textAlign: "center", lineHeight: 22 },
+
   // ヘッダー(固定オーバーレイ)
   headerSafe: { position: "absolute", top: 0, left: 0, right: 0 },
   top: { paddingHorizontal: 16, paddingTop: 6 },
@@ -632,16 +704,6 @@ const styles = StyleSheet.create({
   actions: { position: "absolute", right: 12, bottom: 190, alignItems: "center", gap: 18 },
   avatarWrap: { width: 48, height: 48, marginBottom: 4 },
   avatar: { width: 48, height: 48, borderRadius: 999, borderColor: colors.text, borderWidth: 2 },
-  followBadge: {
-    position: "absolute",
-    bottom: -6,
-    alignSelf: "center",
-    width: 20,
-    height: 20,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   action: { alignItems: "center", gap: 4 },
   actionPressed: { opacity: 0.6, transform: [{ scale: 0.92 }] },
   actionIcon: {
