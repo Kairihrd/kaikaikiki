@@ -5,18 +5,15 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View,
 } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  Bell,
   Check,
   ChevronRight,
   Globe,
-  Lock,
   LogOut,
   UserCog,
   X,
@@ -35,7 +32,6 @@ import { colors, radius } from "@/lib/theme";
 export default function SettingsScreen() {
   const { lang, setLang, t } = useLanguage();
   const { signOut } = useAuth();
-  const [push, setPush] = useState(true);
   const [langOpen, setLangOpen] = useState(false);
 
   return (
@@ -57,15 +53,8 @@ export default function SettingsScreen() {
               onPress={() => router.push("/profile/edit")}
             />
             <Divider />
-            <Row
-              icon={<Lock size={18} color={colors.cyan} />}
-              label={t("settings.privacyTitle")}
-              chevron
-              onPress={() =>
-                Alert.alert(t("settings.privacyTitle"), t("settings.privacyMsg"))
-              }
-            />
-            <Divider />
+            {/* プライバシー設定は未実装のため、準備中Alertを出さずUIから非表示にする。
+                (i18n キーは将来用に残す) */}
             <Row
               icon={<Globe size={18} color={colors.cyan} />}
               label={t("settings.language")}
@@ -75,14 +64,7 @@ export default function SettingsScreen() {
             />
           </GlassCard>
 
-          <Text style={styles.section}>{t("settings.notifyDisplay")}</Text>
-          <GlassCard style={styles.card}>
-            <Row
-              icon={<Bell size={18} color={colors.cyan} />}
-              label={t("settings.push")}
-              right={<Switch value={push} onValueChange={setPush} />}
-            />
-          </GlassCard>
+          {/* OSプッシュ通知は未実装のため、効果のないトグルは非表示にする。 */}
 
           {/* ログアウト */}
           <GlassCard style={styles.card}>

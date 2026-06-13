@@ -20,6 +20,7 @@ import {
   getLikedArtworksSample,
   getResonanceMatches,
   getSensibilityProfile,
+  getTodaysArtworks,
   type Creator,
   type Discovery,
   type ResonanceMatch,
@@ -200,15 +201,25 @@ export default function MatchingScreen() {
       ? "今日の解析済み"
       : "今日のマッチングを解析する";
 
-  const onOpenMatch = (m: ResonanceMatch) =>
+  // クリエイターのハンドルから実在する作品IDを引く(無ければ undefined)。
+  // creator.id は作品IDではないため、誤った作品詳細へ飛ばさないようにする。
+  const artworkIdForMatch = (m: ResonanceMatch): string | undefined =>
+    getTodaysArtworks().find((a) => a.creatorHandle === m.creator.handle)?.id;
+
+  const onOpenMatch = (m: ResonanceMatch) => {
+    const artworkId = artworkIdForMatch(m);
+    // 実在作品がある時だけ「作品を見る」を表示し、正しい作品詳細へ遷移する。
     Alert.alert(
       `${m.creator.name}（共鳴度 ${m.resonance}%）`,
       `${m.genre}・${m.creator.handle}\n\n${m.reason}`,
-      [
-        { text: "閉じる", style: "cancel" },
-        { text: "作品を見る", onPress: () => router.push(`/artwork/${m.creator.id}`) },
-      ],
+      artworkId
+        ? [
+            { text: "閉じる", style: "cancel" },
+            { text: "作品を見る", onPress: () => router.push(`/artwork/${artworkId}`) },
+          ]
+        : [{ text: "閉じる", style: "cancel" }],
     );
+  };
 
   return (
     <View style={styles.root}>
