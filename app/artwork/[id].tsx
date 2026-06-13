@@ -53,7 +53,7 @@ export default function ArtworkDetailScreen() {
   const onShare = async () => {
     try {
       await Share.share({
-        message: `${artwork.title} / ${creator.name} — Billdist`,
+        message: `${artwork.title} / ${creator.name} — senseed`,
       });
     } catch {
       Alert.alert("シェア", "共有しました");

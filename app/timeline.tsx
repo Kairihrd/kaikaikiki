@@ -57,7 +57,7 @@ export default function TimelineScreen() {
   const onShare = async () => {
     try {
       await Share.share({
-        message: `${artwork.title} / ${creator.name} — Billdist`,
+        message: `${artwork.title} / ${creator.name} — senseed`,
       });
     } catch {
       Alert.alert("シェア", "共有しました");
@@ -86,7 +86,7 @@ export default function TimelineScreen() {
         <View style={styles.top}>
           <View style={styles.topRow}>
             <Pressable onPress={() => router.push("/")}>
-              <Text style={styles.logo}>Billdist</Text>
+              <Text style={styles.logo}>senseed</Text>
             </Pressable>
             <View style={styles.topActions}>
               <IconButton accessibilityLabel="検索">

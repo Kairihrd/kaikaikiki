@@ -9,12 +9,14 @@ import BillboardMosaic from "@/components/BillboardMosaic";
 import StatCard from "@/components/StatCard";
 import Countdown from "@/components/Countdown";
 import GradientButton from "@/components/GradientButton";
-import { CURRENT_THEME, getThemeArtworks } from "@/lib/mockData";
+import FloatingPostButton from "@/components/FloatingPostButton";
+import { CURRENT_THEME, getThemeBillboardArtworks } from "@/lib/mockData";
 import { colors, radius } from "@/lib/theme";
 
-// 2. テーマビルボード(今月のテーマ「境界」)
+// 2. テーマビルボード(今月のテーマ「境界」)。ビルボード配下のサブ画面。
 export default function ThemeScreen() {
-  const artworks = getThemeArtworks();
+  // 【Sensedルール】テーマ参加作品から毎日入れ替わるビルボード。
+  const artworks = getThemeBillboardArtworks();
 
   return (
     <View style={styles.root}>
@@ -84,6 +86,10 @@ export default function ThemeScreen() {
           <BillboardMosaic artworks={artworks} highlightId="1" />
         </ScrollView>
       </SafeAreaView>
+
+      {/* X風フローティング投稿ボタン(このテーマに投稿) */}
+      <FloatingPostButton mode="theme" accessibilityLabel="このテーマに投稿" />
+
       <BottomNav />
     </View>
   );

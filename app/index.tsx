@@ -24,10 +24,11 @@ import BottomNav from "@/components/BottomNav";
 import BillboardMosaic from "@/components/BillboardMosaic";
 import StatCard from "@/components/StatCard";
 import Countdown from "@/components/Countdown";
+import FloatingPostButton from "@/components/FloatingPostButton";
 import {
   CURRENT_THEME,
   GENRES,
-  getTodaysArtworks,
+  getTodaysBillboardArtworks,
   type Genre,
 } from "@/lib/mockData";
 import { colors, radius } from "@/lib/theme";
@@ -37,7 +38,8 @@ export default function HomeScreen() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [genre, setGenre] = useState<Genre | null>(null);
 
-  const all = getTodaysArtworks();
+  // 【Sensedルール】毎日、表示回数の少ない人を優先して入れ替わるビルボード。
+  const all = getTodaysBillboardArtworks();
   const artworks = genre ? all.filter((a) => a.genre === genre) : all;
   // フィルタ後も注目作品(id:1)があれば中央に、無ければ先頭を中央にする。
   const highlightId = artworks.some((a) => a.id === "1")
@@ -106,6 +108,10 @@ export default function HomeScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      {/* X風フローティング投稿ボタン(今日のビルボードに応募) */}
+      <FloatingPostButton mode="billboard" accessibilityLabel="今日のビルボードに投稿" />
+
       <BottomNav />
 
       {/* ジャンルフィルター(簡易モーダル) */}

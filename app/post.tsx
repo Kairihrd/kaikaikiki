@@ -8,9 +8,15 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, ImagePlus } from "lucide-react-native";
+import {
+  ArrowLeft,
+  Check,
+  ImagePlus,
+  LayoutGrid,
+  Sparkles,
+} from "lucide-react-native";
 import ScreenGlow from "@/components/ScreenGlow";
 import BottomNav from "@/components/BottomNav";
 import GlassCard from "@/components/GlassCard";
@@ -21,20 +27,34 @@ import { colors, radius } from "@/lib/theme";
 
 // 6. 投稿(MVPでは実アップロードなし。フォーム + プレビューのみ)
 export default function PostScreen() {
+  // ビルボード/テーマ画面のX風投稿ボタンから ?mode= で初期の投稿先が渡ってくる。
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState("");
   const [genre, setGenre] = useState<string>(GENRES[0]);
-  const [joinBillboard, setJoinBillboard] = useState(true);
+  // 投稿先(複数選択可)。mode=theme で来たらテーマを初期ON、それ以外は今日のビルボード。
+  const [applyToday, setApplyToday] = useState(mode !== "theme");
+  const [applyTheme, setApplyTheme] = useState(mode === "theme");
   const [allowAi, setAllowAi] = useState(true);
 
-  // MVP: 実際の保存はせず、投稿後はマイページへ遷移する
-  const handleSubmit = () =>
-    Alert.alert(
-      "投稿しました",
-      `「${title || "無題"}」を${joinBillboard ? "今日のビルボード候補として" : ""}投稿しました。`,
-      [{ text: "マイページへ", onPress: () => router.push("/profile") }],
-    );
+  // MVP: 実際の保存はせず、選択した投稿先に応じてAlertを出す。
+  const handleSubmit = () => {
+    let message: string;
+    if (applyToday && applyTheme) {
+      message = `「${title || "無題"}」を今日のビルボード候補とテーマ『${CURRENT_THEME}』に応募しました。`;
+    } else if (applyToday) {
+      message = `「${title || "無題"}」を今日のビルボード候補に追加しました。`;
+    } else if (applyTheme) {
+      message = `「${title || "無題"}」をテーマ『${CURRENT_THEME}』に応募しました。`;
+    } else {
+      message = `「${title || "無題"}」を投稿しました(応募先は未選択です)。`;
+    }
+    Alert.alert("投稿しました", message, [
+      { text: "マイページへ", onPress: () => router.push("/profile") },
+    ]);
+  };
 
   const handlePreview = () =>
     Alert.alert(
@@ -125,14 +145,29 @@ export default function PostScreen() {
             </Field>
           </GlassCard>
 
+          {/* 投稿先の選択(複数選択可) */}
+          <View>
+            <Text style={styles.sectionLabel}>投稿先を選ぶ</Text>
+            <View style={styles.targets}>
+              <TargetCard
+                icon={<LayoutGrid size={20} color={colors.cyan} />}
+                title="今日のビルボードに応募する"
+                sub="Today's 100 の候補に追加"
+                selected={applyToday}
+                onPress={() => setApplyToday((v) => !v)}
+              />
+              <TargetCard
+                icon={<Sparkles size={20} color={colors.cyan} />}
+                title={`テーマ『${CURRENT_THEME}』に応募する`}
+                sub="今月のテーマビルボードに参加"
+                selected={applyTheme}
+                onPress={() => setApplyTheme((v) => !v)}
+              />
+            </View>
+          </View>
+
           {/* トグル */}
           <GlassCard style={styles.toggles}>
-            <Toggle
-              label="今日のビルボード候補に応募する"
-              value={joinBillboard}
-              onToggle={() => setJoinBillboard((v) => !v)}
-            />
-            <View style={styles.divider} />
             <Toggle
               label="AIによる作品解析を許可する"
               value={allowAi}
@@ -151,6 +186,36 @@ export default function PostScreen() {
       </SafeAreaView>
       <BottomNav />
     </View>
+  );
+}
+
+function TargetCard({
+  icon,
+  title,
+  sub,
+  selected,
+  onPress,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  sub: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[styles.target, selected ? styles.targetOn : styles.targetOff]}
+    >
+      <View style={styles.targetIcon}>{icon}</View>
+      <View style={styles.targetText}>
+        <Text style={styles.targetTitle}>{title}</Text>
+        <Text style={styles.targetSub}>{sub}</Text>
+      </View>
+      <View style={[styles.checkbox, selected && styles.checkboxOn]}>
+        {selected ? <Check size={14} color={colors.bg} /> : null}
+      </View>
+    </Pressable>
   );
 }
 
@@ -240,6 +305,48 @@ const styles = StyleSheet.create({
   },
   themeBoxLabel: { color: colors.textDim, fontSize: 14 },
   themeBoxValue: { color: colors.cyan, fontSize: 14, fontWeight: "700" },
+  sectionLabel: { color: colors.textDim, fontSize: 12, fontWeight: "600", marginBottom: 10 },
+  targets: { gap: 10 },
+  target: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: 14,
+  },
+  targetOn: {
+    borderColor: "rgba(34,211,238,0.5)",
+    backgroundColor: "rgba(34,211,238,0.08)",
+  },
+  targetOff: {
+    borderColor: colors.border,
+    backgroundColor: colors.glass,
+  },
+  targetIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    backgroundColor: colors.glassStrong,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  targetText: { flex: 1 },
+  targetTitle: { color: colors.text, fontSize: 14, fontWeight: "700" },
+  targetSub: { color: colors.textDim, fontSize: 11, marginTop: 2 },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxOn: {
+    backgroundColor: colors.cyan,
+    borderColor: colors.cyan,
+  },
   toggles: { padding: 4 },
   divider: { height: 1, backgroundColor: colors.border, marginHorizontal: 12 },
   toggleRow: {

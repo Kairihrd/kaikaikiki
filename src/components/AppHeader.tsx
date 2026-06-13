@@ -14,7 +14,7 @@ interface AppHeaderProps {
   centerTitle?: boolean;
 }
 
-const AVATAR = "https://picsum.photos/seed/billdist-avatar-kanata/100/100";
+const AVATAR = "https://picsum.photos/seed/senseed-avatar-kanata/100/100";
 
 // 全画面共通の上部ヘッダー。SafeAreaは各画面のSafeAreaView側で確保する。
 export default function AppHeader({
@@ -35,7 +35,7 @@ export default function AppHeader({
         ) : null}
         {!centerTitle ? (
           <Pressable onPress={() => router.push("/")}>
-            <Text style={styles.logo}>Billdist</Text>
+            <Text style={styles.logo}>senseed</Text>
             {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
           </Pressable>
         ) : null}
@@ -44,7 +44,7 @@ export default function AppHeader({
       {/* 中央タイトル */}
       {centerTitle ? (
         <View style={styles.center}>
-          <Text style={styles.logo}>Billdist</Text>
+          <Text style={styles.logo}>senseed</Text>
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
       ) : null}

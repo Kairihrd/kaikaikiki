@@ -1,4 +1,5 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -6,10 +7,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   BadgeCheck,
   Bell,
+  Check,
   Heart,
   MessageCircle,
   Settings,
   Users,
+  X,
 } from "lucide-react-native";
 import ScreenGlow from "@/components/ScreenGlow";
 import AppHeader from "@/components/AppHeader";
@@ -21,6 +24,7 @@ import {
   FEATURED_ARTWORK,
   FEATURED_CREATOR,
   getTodaysArtworks,
+  type Artwork,
 } from "@/lib/mockData";
 import { formatCount } from "@/lib/format";
 import { colors, gradient, radius } from "@/lib/theme";
@@ -30,8 +34,12 @@ const PROFILE_TABS = ["作品", "いいね", "コメント", "下書き"];
 // 5. マイページ
 export default function ProfileScreen() {
   const me = FEATURED_CREATOR;
-  const pinned = FEATURED_ARTWORK;
   const myWorks = getTodaysArtworks().slice(1, 13);
+  // 「ビルボードに表示される自信作」は自分で設定する(ローカルstateで差し替え)。
+  // 候補は featured + 自分の作品。DB保存はしない。
+  const pinCandidates: Artwork[] = [FEATURED_ARTWORK, ...myWorks];
+  const [pinned, setPinned] = useState<Artwork>(FEATURED_ARTWORK);
+  const [pinPickerOpen, setPinPickerOpen] = useState(false);
 
   return (
     <View style={styles.root}>
@@ -65,9 +73,11 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
 
-          {/* ステータスカード */}
+          {/* ステータスカード(サポーターカードはタップで /supporting へ) */}
           <View style={styles.stats}>
-            <StatCard style={styles.statItem} value={formatCount(me.supporterCount)} label="サポーター" />
+            <Pressable style={styles.statItem} onPress={() => router.push("/supporting")}>
+              <StatCard value={formatCount(me.supporterCount)} label="サポーター" />
+            </Pressable>
             <StatCard style={styles.statItem} value="328" label="いいねした作品" />
           </View>
           <View style={styles.stats}>
@@ -75,9 +85,12 @@ export default function ProfileScreen() {
             <StatCard style={styles.statItem} value="12" label="コレクション" />
           </View>
 
-          {/* 固定作品 */}
+          {/* 固定作品(自分で設定する自信作) */}
           <View>
             <Text style={styles.sectionTitle}>ビルボードに表示される自信作</Text>
+            <Text style={styles.sectionDesc}>
+              あなたがビルボード候補として見せたい代表作を1つ設定できます。
+            </Text>
             <GlassCard style={styles.pinned}>
               <Image source={{ uri: pinned.imageUrl }} style={styles.pinnedImage} contentFit="cover" />
               <View style={styles.pinnedBody}>
@@ -93,8 +106,11 @@ export default function ProfileScreen() {
                     <Text style={styles.pinnedStatText}>{pinned.comments}</Text>
                   </View>
                 </View>
-                <Pressable style={styles.pinButton}>
-                  <Text style={styles.pinButtonText}>ピンを変更する</Text>
+                <Pressable
+                  style={styles.pinButton}
+                  onPress={() => setPinPickerOpen(true)}
+                >
+                  <Text style={styles.pinButtonText}>自信作を設定する</Text>
                 </Pressable>
               </View>
             </GlassCard>
@@ -137,6 +153,55 @@ export default function ProfileScreen() {
         </ScrollView>
       </SafeAreaView>
       <BottomNav />
+
+      {/* 自信作ピッカー(自分の作品から1つ選ぶ簡易モーダル) */}
+      <Modal
+        visible={pinPickerOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPinPickerOpen(false)}
+      >
+        <Pressable style={styles.backdrop} onPress={() => setPinPickerOpen(false)}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>自信作を選ぶ</Text>
+              <Pressable onPress={() => setPinPickerOpen(false)} accessibilityLabel="閉じる">
+                <X size={22} color={colors.textDim} />
+              </Pressable>
+            </View>
+            <Text style={styles.sheetSub}>
+              ビルボード候補として見せたい代表作を1つ選んでください。
+            </Text>
+
+            <ScrollView style={styles.sheetList} showsVerticalScrollIndicator={false}>
+              {pinCandidates.map((art) => {
+                const active = art.id === pinned.id;
+                return (
+                  <Pressable
+                    key={art.id}
+                    style={[styles.pickRow, active && styles.pickRowActive]}
+                    onPress={() => {
+                      setPinned(art);
+                      setPinPickerOpen(false);
+                    }}
+                  >
+                    <Image source={{ uri: art.imageUrl }} style={styles.pickThumb} contentFit="cover" />
+                    <View style={styles.pickInfo}>
+                      <Text style={styles.pickTitle} numberOfLines={1}>
+                        {art.title}
+                      </Text>
+                      <Text style={styles.pickMeta} numberOfLines={1}>
+                        {art.genre}・♥ {formatCount(art.likes)}
+                      </Text>
+                    </View>
+                    {active ? <Check size={18} color={colors.cyan} /> : null}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -185,7 +250,8 @@ const styles = StyleSheet.create({
   editText: { color: colors.text, fontSize: 14, fontWeight: "600" },
   stats: { flexDirection: "row", gap: 12 },
   statItem: { flex: 1 },
-  sectionTitle: { color: colors.textDim, fontSize: 14, fontWeight: "700", marginBottom: 12 },
+  sectionTitle: { color: colors.textDim, fontSize: 14, fontWeight: "700", marginBottom: 4 },
+  sectionDesc: { color: colors.textFaint, fontSize: 12, marginBottom: 12 },
   pinned: { overflow: "hidden" },
   pinnedImage: { width: "100%", height: 200 },
   pinnedBody: { padding: 18 },
@@ -221,4 +287,43 @@ const styles = StyleSheet.create({
   menu: { gap: 10 },
   menuRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16 },
   menuLabel: { color: colors.text, fontSize: 14, fontWeight: "600" },
+
+  // 自信作ピッカー(モーダル)
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    backgroundColor: "#0c0c0f",
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    borderColor: colors.border,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 36,
+    maxHeight: "75%",
+  },
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  sheetTitle: { color: colors.text, fontSize: 16, fontWeight: "800" },
+  sheetSub: { color: colors.textDim, fontSize: 12, marginTop: 6, marginBottom: 8 },
+  sheetList: { marginTop: 4 },
+  pickRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: radius.md,
+  },
+  pickRowActive: { backgroundColor: colors.glassStrong },
+  pickThumb: { width: 52, height: 52, borderRadius: radius.md },
+  pickInfo: { flex: 1 },
+  pickTitle: { color: colors.text, fontSize: 14, fontWeight: "700" },
+  pickMeta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
 });

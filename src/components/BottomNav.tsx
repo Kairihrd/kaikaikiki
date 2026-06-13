@@ -4,28 +4,30 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
+  HeartHandshake,
   LayoutGrid,
+  Play,
   Plus,
-  Sparkles,
   User,
-  Users,
   type LucideProps,
 } from "lucide-react-native";
 import { colors, gradient } from "@/lib/theme";
 
 interface NavItem {
-  href: "/" | "/theme" | "/supporting" | "/profile";
+  href: "/" | "/matching" | "/timeline" | "/profile";
   label: string;
   icon: ComponentType<LucideProps>;
 }
 
-// 5タブ構成: ビルボード / テーマ / [中央=投稿] / サポーター中 / マイページ
+// 5タブ構成: ビルボード / マッチング / [中央=投稿] / タイムライン / マイページ
+// 「テーマ」はビルボード配下のサブ画面(/theme)として扱い、下部タブには置かない。
+// 「サポーター中」もマイページ配下の機能として /supporting に集約する。
 const LEFT: NavItem[] = [
   { href: "/", label: "ビルボード", icon: LayoutGrid },
-  { href: "/theme", label: "テーマ", icon: Sparkles },
+  { href: "/matching", label: "マッチング", icon: HeartHandshake },
 ];
 const RIGHT: NavItem[] = [
-  { href: "/supporting", label: "サポーター中", icon: Users },
+  { href: "/timeline", label: "タイムライン", icon: Play },
   { href: "/profile", label: "マイページ", icon: User },
 ];
 
@@ -34,8 +36,14 @@ export default function BottomNav() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
 
-  const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname.startsWith(href);
+  // テーマ(/theme)はビルボード配下なのでビルボードを、サポーター中(/supporting)は
+  // マイページ配下なのでマイページを、それぞれアクティブ扱いにする。
+  const isActive = (href: string) => {
+    if (href === "/") return pathname === "/" || pathname.startsWith("/theme");
+    if (href === "/profile")
+      return pathname.startsWith("/profile") || pathname.startsWith("/supporting");
+    return pathname.startsWith(href);
+  };
 
   return (
     <View

@@ -1,5 +1,5 @@
 // ============================================================================
-// Billdist — モックデータ
+// senseed — モックデータ
 // ----------------------------------------------------------------------------
 // MVP段階ではここからデータを読み込む。後で Supabase / API に差し替えやすいよう、
 // データ取得は getXxx() 関数経由で行う(中身を fetch に変えるだけで移行できる)。
@@ -33,6 +33,9 @@ export interface Artwork {
   isAudio: boolean;
   tags: string[];
   size: ArtworkSize;
+  // 【Sensedルール】ビルボードに過去表示された回数(疑似値)。
+  // DBが無いMVPでは固定値を持たせ、表示回数が少ない人を優先して選出する。
+  shownCount: number;
 }
 
 export interface Creator {
@@ -58,10 +61,10 @@ export interface Comment {
 // 後で実画像 URL に差し替え可能。
 // ----------------------------------------------------------------------------
 const img = (seed: string, w = 600, h = 800, grayscale = false) =>
-  `https://picsum.photos/seed/billdist-${seed}/${w}/${h}${grayscale ? "?grayscale" : ""}`;
+  `https://picsum.photos/seed/senseed-${seed}/${w}/${h}${grayscale ? "?grayscale" : ""}`;
 
 const avatar = (seed: string) =>
-  `https://picsum.photos/seed/billdist-avatar-${seed}/200/200`;
+  `https://picsum.photos/seed/senseed-avatar-${seed}/200/200`;
 
 // 月間テーマ
 export const CURRENT_THEME = "境界";
@@ -85,6 +88,7 @@ export const FEATURED_ARTWORK: Artwork = {
   isAudio: true,
   tags: ["#写真", "#建築", "#モノクロ", "#光と影"],
   size: "large",
+  shownCount: 9, // 看板作品なので過去に多く表示されている
 };
 
 export const FEATURED_CREATOR: Creator = {
@@ -213,6 +217,8 @@ const GENERATED: Artwork[] = SEEDS.map((s, idx) => {
     isAudio: s.isAudio ?? false,
     tags: s.tags,
     size: pickSize(idx),
+    // 表示回数をばらつかせる(0〜7)。0 の人はまだ一度も表示されていない想定。
+    shownCount: (i * 3) % 8,
   };
 });
 
@@ -278,6 +284,138 @@ export function getRecommendedArtworks(): Artwork[] {
 // タイムライン「フォロー」: フォロー/サポート中クリエイターの作品
 export function getFollowingArtworks(): Artwork[] {
   return ARTWORKS.filter((a) => SUPPORTING_HANDLES.includes(a.creatorHandle));
+}
+
+// ============================================================================
+// 【Sensedルール】ビルボード選出ロジック
+// ----------------------------------------------------------------------------
+// ・毎日、表示されるアーティストが入れ替わる(今日の日付をseedにする)。
+// ・全員が満遍なく露出するよう、過去の表示回数(shownCount)が少ない人を優先。
+// ・表示回数が同じ場合は、日付seedによる擬似ランダムで並べる。
+// ・作品/ユーザーが100人以下なら全件表示(順番だけ毎日変わる)。
+// ・100人を超える想定でも上位 limit 件だけ返せるようにしてある。
+// MVPではDBが無いため shownCount を固定値で持ち、ここで擬似的に再現する。
+// 後でサーバ実装する際は、この関数の中身をクエリに差し替えるだけでよい。
+// ============================================================================
+
+// 今日の日付を数値seedにする(例: 2025-05-24 → 20250524)。毎日値が変わる。
+function todaySeed(): number {
+  const d = new Date();
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+}
+
+// seed と id から決定論的に [0,1) の擬似乱数を作る(同点のシャッフル用)。
+function seededRandom(seed: number): number {
+  const x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
+}
+
+// 表示回数が少ない順 → 同点は日付seedでランダムに並べ替えて上位 limit 件を返す。
+function pickBillboard(pool: Artwork[], limit: number): Artwork[] {
+  const seed = todaySeed();
+  const ranked = [...pool].sort((a, b) => {
+    if (a.shownCount !== b.shownCount) return a.shownCount - b.shownCount;
+    return seededRandom(seed + Number(a.id)) - seededRandom(seed + Number(b.id));
+  });
+  return ranked.slice(0, limit);
+}
+
+// 今日のビルボード(Today's 100)。100件以下なら実質全件、超えたら上位100件。
+export function getTodaysBillboardArtworks(limit = 100): Artwork[] {
+  return pickBillboard(ARTWORKS, limit);
+}
+
+// テーマビルボード。テーマ参加作品から毎日 limit 件を同じルールで選出する。
+export function getThemeBillboardArtworks(
+  theme: string = CURRENT_THEME,
+  limit = 100,
+): Artwork[] {
+  return pickBillboard(
+    ARTWORKS.filter((a) => a.theme === theme),
+    limit,
+  );
+}
+
+// ============================================================================
+// マッチング(Resonance Agent)用モックデータ
+// ----------------------------------------------------------------------------
+// AIは作品を「評価」しない。ユーザーのいいね履歴から感性を推定し、ジャンルを越えた
+// クリエイター/作品との出会い(推薦)を作る、という設計をUIで表現するためのモック。
+// 後で Embedding / Claude API に差し替えやすいよう、取得は関数経由にしている。
+// ============================================================================
+
+export interface ResonanceMatch {
+  id: string;
+  creator: Creator;
+  resonance: number; // 共鳴度(%)
+  genre: string;
+  reason: string; // なぜ共鳴するか(言語化)
+}
+
+export interface SensibilityTrait {
+  label: string;
+  value: number; // 0-100
+}
+
+export interface Discovery {
+  title: string; // 例: 映像作家 × 音楽
+  body: string;
+}
+
+// 感性プロファイル(いいね履歴から推定した、という想定)
+export function getSensibilityProfile(): SensibilityTrait[] {
+  return [
+    { label: "静寂", value: 93 },
+    { label: "余白", value: 87 },
+    { label: "孤独", value: 72 },
+    { label: "光", value: 65 },
+  ];
+}
+
+// あなたと共鳴する人(ジャンル横断で推薦)
+export function getResonanceMatches(): ResonanceMatch[] {
+  return [
+    {
+      id: "m1",
+      creator: getCreatorByHandle("@mina_film"),
+      resonance: 93,
+      genre: "映像",
+      reason:
+        "あなたが惹かれる「静寂」と「余白」が、この映像作家の時間の余白の使い方と強く共鳴しています。",
+    },
+    {
+      id: "m2",
+      creator: getCreatorByHandle("@sou_sound"),
+      resonance: 88,
+      genre: "音楽",
+      reason:
+        "普段は写真を多く見ていますが、このアンビエント作家の“間”の取り方にあなたの感性と共通点があります。",
+    },
+    {
+      id: "m3",
+      creator: getCreatorByHandle("@shion_sculpt"),
+      resonance: 81,
+      genre: "彫刻",
+      reason:
+        "「光」と「孤独」への反応傾向から、透明なガラス彫刻のこの作家を未接触ジャンルとして提案します。",
+    },
+    {
+      id: "m4",
+      creator: getCreatorByHandle("@nagi_mode"),
+      resonance: 76,
+      genre: "ファッション",
+      reason:
+        "白と余白を生かす構成が、あなたがいいねした作品群の傾向と重なっています。",
+    },
+  ];
+}
+
+// 「あなたへの発見」(未接触ジャンルを優先した出会い)
+export function getDiscovery(): Discovery {
+  return {
+    title: "映像作家 × 音楽",
+    body: "普段は写真を見ていますが、この映像作家の作品にも強い共通点があります。ジャンルの外側に、あなたの感性と響き合う表現が見つかりました。",
+  };
 }
 
 export const GENRES: Genre[] = [
