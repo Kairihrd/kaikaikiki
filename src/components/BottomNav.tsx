@@ -6,12 +6,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   HeartHandshake,
   LayoutGrid,
+  PenLine,
   Play,
   Plus,
   User,
   type LucideProps,
 } from "lucide-react-native";
 import { useLanguage } from "@/context/LanguageContext";
+import { usePosts } from "@/context/PostsContext";
+import { CURRENT_THEME } from "@/lib/mockData";
 import { colors, gradient } from "@/lib/theme";
 
 interface NavItem {
@@ -37,6 +40,7 @@ export default function BottomNav() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const { t } = useLanguage();
+  const { hasPostedToTheme } = usePosts();
 
   // テーマ(/theme)はビルボード配下なのでビルボードを、サポーター中(/supporting)は
   // マイページ配下なのでマイページを、それぞれアクティブ扱いにする。
@@ -45,6 +49,28 @@ export default function BottomNav() {
     if (href === "/profile")
       return pathname.startsWith("/profile") || pathname.startsWith("/supporting");
     return pathname.startsWith(href);
+  };
+
+  // 中央投稿ボタンの出し分け(投稿できるのはタイムラインとテーマのみ):
+  //  - /timeline: 通常の + で投稿可 → /post
+  //  - /theme: ペンUI。未投稿なら有効(→ /post?mode=theme)、投稿済みならグレーアウト
+  //  - それ以外(/, /matching, /profile, /settings, /notifications, /messages,
+  //    /supporting など): すべてグレーアウトして投稿不可
+  const onTheme = pathname.startsWith("/theme");
+  const onTimeline = pathname.startsWith("/timeline");
+  const themeDone = onTheme && hasPostedToTheme(CURRENT_THEME);
+  const centerMode: "theme" | "themeDone" | "post" | "disabled" = onTheme
+    ? themeDone
+      ? "themeDone"
+      : "theme"
+    : onTimeline
+      ? "post"
+      : "disabled";
+  const centerDisabled = centerMode === "disabled" || centerMode === "themeDone";
+  const CenterIcon = onTheme ? PenLine : Plus;
+  const onCenter = () => {
+    if (centerDisabled) return;
+    router.push(centerMode === "theme" ? "/post?mode=theme" : "/post");
   };
 
   return (
@@ -57,22 +83,31 @@ export default function BottomNav() {
           <NavLink key={item.href} item={item} active={isActive(item.href)} label={t(item.labelKey)} />
         ))}
 
-        {/* 中央投稿ボタン(虹色グラデーション枠・大きめ) */}
+        {/* 中央投稿ボタン */}
         <Pressable
           accessibilityLabel="投稿"
-          onPress={() => router.push("/post")}
-          style={({ pressed }) => pressed && styles.pressed}
+          onPress={onCenter}
+          disabled={centerDisabled}
+          style={({ pressed }) => pressed && !centerDisabled && styles.pressed}
         >
-          <LinearGradient
-            colors={gradient.brand}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.fabOuter}
-          >
-            <View style={styles.fabInner}>
-              <Plus size={26} color={colors.text} />
+          {centerDisabled ? (
+            <View style={[styles.fabOuter, styles.fabDisabled]}>
+              <View style={styles.fabInner}>
+                <CenterIcon size={26} color={colors.textFaint} />
+              </View>
             </View>
-          </LinearGradient>
+          ) : (
+            <LinearGradient
+              colors={gradient.brand}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.fabOuter}
+            >
+              <View style={styles.fabInner}>
+                <CenterIcon size={26} color={colors.text} />
+              </View>
+            </LinearGradient>
+          )}
         </Pressable>
 
         {RIGHT.map((item) => (
@@ -145,6 +180,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     alignItems: "center",
     justifyContent: "center",
+  },
+  // ビルボードでは投稿不可: グレーアウト表示。
+  fabDisabled: {
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderColor: colors.border,
+    borderWidth: 1,
   },
   pressed: {
     opacity: 0.85,

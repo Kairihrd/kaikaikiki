@@ -8,8 +8,10 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as ImagePicker from "expo-image-picker";
 import {
   ArrowLeft,
   Check,
@@ -23,37 +25,63 @@ import GlassCard from "@/components/GlassCard";
 import GradientButton from "@/components/GradientButton";
 import IconButton from "@/components/IconButton";
 import { CURRENT_THEME, GENRES } from "@/lib/mockData";
+import { usePosts } from "@/context/PostsContext";
+import { hapticSuccess } from "@/lib/haptics";
 import { colors, radius } from "@/lib/theme";
 
-// 6. 投稿(MVPでは実アップロードなし。フォーム + プレビューのみ)
+// 6. 投稿。写真選択 + 入力 → タイムラインに反映(PostsContext / AsyncStorage)。
 export default function PostScreen() {
-  // ビルボード/テーマ画面のX風投稿ボタンから ?mode= で初期の投稿先が渡ってくる。
+  // ビルボード/テーマ画面の投稿ボタンから ?mode= で初期の投稿先が渡ってくる。
   const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const { addPost, hasPostedToTheme } = usePosts();
+  // テーマは1人1投稿。既に投稿済みかどうか。
+  const themeTaken = hasPostedToTheme(CURRENT_THEME);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState("");
   const [genre, setGenre] = useState<string>(GENRES[0]);
-  // 投稿先(複数選択可)。mode=theme で来たらテーマを初期ON、それ以外は今日のビルボード。
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  // 投稿先(複数選択可)。mode=theme で来たらテーマを初期ON(未投稿時のみ)。
   const [applyToday, setApplyToday] = useState(mode !== "theme");
-  const [applyTheme, setApplyTheme] = useState(mode === "theme");
+  const [applyTheme, setApplyTheme] = useState(mode === "theme" && !themeTaken);
   const [allowAi, setAllowAi] = useState(true);
 
-  // MVP: 実際の保存はせず、選択した投稿先に応じてAlertを出す。
-  const handleSubmit = () => {
-    let message: string;
-    if (applyToday && applyTheme) {
-      message = `「${title || "無題"}」を今日のビルボード候補とテーマ『${CURRENT_THEME}』に応募しました。`;
-    } else if (applyToday) {
-      message = `「${title || "無題"}」を今日のビルボード候補に追加しました。`;
-    } else if (applyTheme) {
-      message = `「${title || "無題"}」をテーマ『${CURRENT_THEME}』に応募しました。`;
-    } else {
-      message = `「${title || "無題"}」を投稿しました(応募先は未選択です)。`;
+  const pickImage = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("写真へのアクセス", "設定から写真へのアクセスを許可してください。");
+      return;
     }
-    Alert.alert("投稿しました", message, [
-      { text: "マイページへ", onPress: () => router.push("/profile") },
-    ]);
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.85,
+    });
+    if (!result.canceled && result.assets[0]) setImageUri(result.assets[0].uri);
+  };
+
+  const handleSubmit = async () => {
+    // テーマは1人1投稿。投稿済みなら絶対にテーマには登録しない(二重ガード)。
+    const toTheme = applyTheme && !themeTaken ? CURRENT_THEME : undefined;
+    await addPost({
+      imageUri: imageUri ?? undefined,
+      title: title.trim() || "無題",
+      caption: description.trim(),
+      genre,
+      toTheme,
+    });
+    hapticSuccess();
+    const where = [
+      applyToday ? "今日のビルボード候補" : null,
+      toTheme ? `テーマ『${CURRENT_THEME}』` : null,
+    ]
+      .filter(Boolean)
+      .join(" と ");
+    Alert.alert(
+      "投稿しました",
+      `${where ? where + "に応募し、" : ""}タイムラインに公開しました。`,
+      [{ text: "タイムラインを見る", onPress: () => router.replace("/timeline") }],
+    );
   };
 
   const handlePreview = () =>
@@ -78,13 +106,24 @@ export default function PostScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* アップロード枠 */}
-          <Pressable style={styles.upload}>
-            <View style={styles.uploadIcon}>
-              <ImagePlus size={32} color={colors.cyan} />
-            </View>
-            <Text style={styles.uploadTitle}>作品画像・動画・音楽・文章を追加</Text>
-            <Text style={styles.uploadSub}>イラスト・写真・映像・音楽・文章・ファッション・立体・デジタルなど</Text>
+          {/* アップロード枠(写真選択。選択後はプレビュー表示) */}
+          <Pressable style={styles.upload} onPress={pickImage}>
+            {imageUri ? (
+              <>
+                <Image source={{ uri: imageUri }} style={styles.uploadPreview} contentFit="cover" />
+                <View style={styles.uploadChange}>
+                  <Text style={styles.uploadChangeText}>タップで写真を変更</Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={styles.uploadIcon}>
+                  <ImagePlus size={32} color={colors.cyan} />
+                </View>
+                <Text style={styles.uploadTitle}>作品画像を追加</Text>
+                <Text style={styles.uploadSub}>タップして写真を選択</Text>
+              </>
+            )}
           </Pressable>
 
           {/* 入力項目 */}
@@ -159,8 +198,9 @@ export default function PostScreen() {
               <TargetCard
                 icon={<Sparkles size={20} color={colors.cyan} />}
                 title={`テーマ『${CURRENT_THEME}』に応募する`}
-                sub="今月のテーマビルボードに参加"
+                sub={themeTaken ? "このテーマには投稿済みです(1人1投稿)" : "今月のテーマビルボードに参加"}
                 selected={applyTheme}
+                disabled={themeTaken}
                 onPress={() => setApplyTheme((v) => !v)}
               />
             </View>
@@ -195,17 +235,24 @@ function TargetCard({
   sub,
   selected,
   onPress,
+  disabled = false,
 }: {
   icon: React.ReactNode;
   title: string;
   sub: string;
   selected: boolean;
   onPress: () => void;
+  disabled?: boolean;
 }) {
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.target, selected ? styles.targetOn : styles.targetOff]}
+      disabled={disabled}
+      style={[
+        styles.target,
+        selected ? styles.targetOn : styles.targetOff,
+        disabled && styles.targetDisabled,
+      ]}
     >
       <View style={styles.targetIcon}>{icon}</View>
       <View style={styles.targetText}>
@@ -263,7 +310,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 12,
+    overflow: "hidden",
   },
+  uploadPreview: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+  uploadChange: {
+    position: "absolute",
+    bottom: 10,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  uploadChangeText: { color: colors.text, fontSize: 12, fontWeight: "600" },
   uploadIcon: {
     width: 64,
     height: 64,
@@ -323,6 +381,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.glass,
   },
+  targetDisabled: { opacity: 0.5 },
   targetIcon: {
     width: 40,
     height: 40,

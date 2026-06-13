@@ -1,16 +1,24 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MessageCircle } from "lucide-react-native";
+import { MessageCircle, Plus } from "lucide-react-native";
 import ScreenGlow from "@/components/ScreenGlow";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import { useLanguage } from "@/context/LanguageContext";
+import { useNotifications } from "@/context/NotificationContext";
 import { colors, radius } from "@/lib/theme";
 
 // DM(メッセージ)画面。ヘッダーの DM アイコンからの遷移先。
-// MVP プレースホルダー(本実装は別途)。ヘッダーの DM 導線を成立させるための最小画面。
+// 入室時に DM 未読を既読化(DMバッジを消す)。MVP プレースホルダー。
 export default function MessagesScreen() {
   const { t } = useLanguage();
+  const { markDmRead, receiveDm } = useNotifications();
+
+  useEffect(() => {
+    markDmRead();
+  }, [markDmRead]);
+
   return (
     <View style={styles.root}>
       <ScreenGlow />
@@ -26,9 +34,13 @@ export default function MessagesScreen() {
               <MessageCircle size={34} color={colors.cyan} />
             </View>
             <Text style={styles.title}>{t("header.messages")}</Text>
-            <Text style={styles.sub}>
-              {t("messages.subtitle")}
-            </Text>
+            <Text style={styles.sub}>{t("messages.subtitle")}</Text>
+
+            {/* 開発用: DMを受信(別画面に出てから戻ると未読バッジを確認できる) */}
+            <Pressable style={styles.devBtn} onPress={receiveDm}>
+              <Plus size={14} color={colors.textDim} />
+              <Text style={styles.devText}>{t("messages.devReceive")}</Text>
+            </Pressable>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -61,4 +73,18 @@ const styles = StyleSheet.create({
     textAlign: "center",
     maxWidth: 280,
   },
+  devBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: colors.border,
+    backgroundColor: colors.glass,
+  },
+  devText: { color: colors.textDim, fontSize: 12, fontWeight: "600" },
 });

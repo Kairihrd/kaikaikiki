@@ -10,7 +10,6 @@ import BillboardMosaic from "@/components/BillboardMosaic";
 import StatCard from "@/components/StatCard";
 import Countdown from "@/components/Countdown";
 import GradientButton from "@/components/GradientButton";
-import FloatingPostButton from "@/components/FloatingPostButton";
 import { getThemeBillboardArtworks } from "@/lib/mockData";
 import { generateTheme, useCurrentTheme } from "@/lib/themeApi";
 import { useLanguage } from "@/context/LanguageContext";
@@ -126,9 +125,6 @@ export default function ThemeScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
-
-      {/* X風フローティング投稿ボタン(このテーマに投稿) */}
-      <FloatingPostButton mode="theme" accessibilityLabel="このテーマに投稿" />
 
       <BottomNav />
     </View>

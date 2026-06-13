@@ -2,6 +2,7 @@ import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { router, usePathname } from "expo-router";
 import { ArrowLeft, Bell, MessageCircle, MoreHorizontal } from "lucide-react-native";
 import IconButton from "./IconButton";
+import { useNotifications } from "@/context/NotificationContext";
 import { colors } from "@/lib/theme";
 
 interface AppHeaderProps {
@@ -23,6 +24,7 @@ export default function AppHeader({
   centerTitle = false,
 }: AppHeaderProps) {
   const pathname = usePathname();
+  const { unreadCount, dmUnread } = useNotifications();
   // DM(メッセージ)画面にいるときは DM アイコンを出さない(それ以外では押せる)。
   const onDM = pathname.startsWith("/messages");
 
@@ -61,21 +63,27 @@ export default function AppHeader({
         </View>
       ) : null}
 
-      {/* 右: 通知 + DM(+ メニュー) */}
+      {/* 右: 通知 + DM(+ メニュー)。未読は赤丸バッジ。 */}
       <View style={styles.side}>
-        <IconButton
-          accessibilityLabel="通知"
-          onPress={() => router.push("/notifications")}
-        >
-          <Bell size={20} color={colors.text} />
-        </IconButton>
-        {!onDM ? (
+        <View>
           <IconButton
-            accessibilityLabel="メッセージ"
-            onPress={() => router.push("/messages")}
+            accessibilityLabel="通知"
+            onPress={() => router.push("/notifications")}
           >
-            <MessageCircle size={20} color={colors.text} />
+            <Bell size={20} color={colors.text} />
           </IconButton>
+          {unreadCount > 0 ? <View style={styles.badge} /> : null}
+        </View>
+        {!onDM ? (
+          <View>
+            <IconButton
+              accessibilityLabel="メッセージ"
+              onPress={() => router.push("/messages")}
+            >
+              <MessageCircle size={20} color={colors.text} />
+            </IconButton>
+            {dmUnread > 0 ? <View style={styles.badge} /> : null}
+          </View>
         ) : null}
         {showMenu ? (
           <IconButton accessibilityLabel="メニュー">
@@ -113,5 +121,17 @@ const styles = StyleSheet.create({
     color: colors.textFaint,
     fontSize: 11,
     marginTop: -1,
+  },
+  // 未読バッジ(赤丸)
+  badge: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: colors.pink,
+    borderWidth: 1.5,
+    borderColor: colors.bg,
   },
 });

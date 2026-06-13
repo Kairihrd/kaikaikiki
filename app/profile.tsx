@@ -1,11 +1,10 @@
 import { useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  BadgeCheck,
   Check,
   Heart,
   MessageCircle,
@@ -18,7 +17,6 @@ import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import GlassCard from "@/components/GlassCard";
 import StatCard from "@/components/StatCard";
-import Tag from "@/components/Tag";
 import {
   FEATURED_ARTWORK,
   FEATURED_CREATOR,
@@ -27,6 +25,7 @@ import {
 } from "@/lib/mockData";
 import { genreMeta } from "@/lib/genre";
 import { useLanguage } from "@/context/LanguageContext";
+import { useProfile } from "@/context/ProfileContext";
 import { formatCount } from "@/lib/format";
 import { colors, gradient, radius } from "@/lib/theme";
 
@@ -40,7 +39,14 @@ const PROFILE_TAB_KEYS = [
 // 5. マイページ
 export default function ProfileScreen() {
   const { t } = useLanguage();
+  const { profile } = useProfile();
   const me = FEATURED_CREATOR;
+  // 保存済みプロフィールがあれば優先。無ければ i18n / mock の既定値。
+  const displayName = profile.name ?? t("profile.name");
+  const displayBio = profile.bio ?? t("profile.bio");
+  const avatarSource = profile.avatarUri
+    ? { uri: profile.avatarUri }
+    : { uri: me.avatarUrl };
   const myWorks = getTodaysArtworks().slice(1, 13);
   // 「ビルボードに表示される自信作」は自分で設定する(ローカルstateで差し替え)。
   // 候補は featured + 自分の作品。DB保存はしない。
@@ -52,7 +58,7 @@ export default function ProfileScreen() {
     <View style={styles.root}>
       <ScreenGlow />
       <SafeAreaView edges={["top"]} style={styles.safe}>
-        <AppHeader subtitle={t("header.profile")} showProfile={false} showMenu />
+        <AppHeader subtitle={t("header.profile")} showProfile={false} />
 
         <ScrollView
           contentContainerStyle={styles.content}
@@ -61,32 +67,19 @@ export default function ProfileScreen() {
           {/* プロフィール */}
           <View style={styles.profile}>
             <LinearGradient colors={gradient.brand} style={styles.avatarRing}>
-              <Image source={{ uri: me.avatarUrl }} style={styles.avatar} contentFit="cover" />
+              <Image source={avatarSource} style={styles.avatar} contentFit="cover" />
             </LinearGradient>
             <View style={styles.nameRow}>
-              <Text style={styles.name}>{t("profile.name")}</Text>
-              <BadgeCheck size={20} color={colors.cyan} />
+              <Text style={styles.name}>{displayName}</Text>
             </View>
             <Text style={styles.handle}>{me.handle}</Text>
-            <Text style={styles.bio}>{t("profile.bio")}</Text>
+            <Text style={styles.bio}>{displayBio}</Text>
             <Text style={styles.meta}>
               {t("profile.age19")}・{t("profile.tokyo")}　{t("profile.photographer")} / {t("profile.student")}
             </Text>
-            <View style={styles.tagRow}>
-              {[
-                "tag.photo",
-                "tag.architecture",
-                "tag.monochrome",
-                "tag.lightShadow",
-              ].map((key) => (
-                <Tag key={key} label={`#${t(key)}`} />
-              ))}
-            </View>
             <Pressable
               style={styles.editButton}
-              onPress={() =>
-                Alert.alert(t("settings.editProfileTitle"), t("settings.editProfileMsg"))
-              }
+              onPress={() => router.push("/profile/edit")}
             >
               <Text style={styles.editText}>{t("profile.editProfile")}</Text>
             </Pressable>

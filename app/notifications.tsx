@@ -1,31 +1,42 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Heart, MessageCircle, Sparkles, UserPlus } from "lucide-react-native";
+import { Heart, MessageCircle, Plus, Sparkles, UserPlus } from "lucide-react-native";
 import ScreenGlow from "@/components/ScreenGlow";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import GlassCard from "@/components/GlassCard";
 import { useLanguage } from "@/context/LanguageContext";
+import {
+  useNotifications,
+  type NoticeType,
+} from "@/context/NotificationContext";
 import { colors } from "@/lib/theme";
 
-type Notice = {
-  id: string;
-  icon: React.ReactNode;
-  textKey: string;
-  timeKey: string;
-};
+// 通知種別 → アイコン。
+function iconFor(type: NoticeType) {
+  switch (type) {
+    case "support":
+      return <UserPlus size={18} color={colors.cyan} />;
+    case "comment":
+      return <MessageCircle size={18} color={colors.cyan} />;
+    case "theme":
+      return <Sparkles size={18} color={colors.cyan} />;
+    default: // like / billboard / likeDynamic
+      return <Heart size={18} color={colors.pink} />;
+  }
+}
 
-// お知らせ(MVPプレースホルダー)。テキストは翻訳キーで持つ。
-const NOTICES: Notice[] = [
-  { id: "n1", icon: <UserPlus size={18} color={colors.cyan} />, textKey: "notif.support", timeKey: "time.5min" },
-  { id: "n2", icon: <Heart size={18} color={colors.pink} />, textKey: "notif.like", timeKey: "time.1hour" },
-  { id: "n3", icon: <MessageCircle size={18} color={colors.cyan} />, textKey: "notif.comment", timeKey: "time.3hours" },
-  { id: "n4", icon: <Sparkles size={18} color={colors.cyan} />, textKey: "notif.theme", timeKey: "time.yesterday" },
-  { id: "n5", icon: <Heart size={18} color={colors.pink} />, textKey: "notif.billboard", timeKey: "time.2days" },
-];
-
+// お知らせ。NotificationContext から表示し、入室時に全件既読化(バッジを消す)。
 export default function NotificationsScreen() {
   const { t } = useLanguage();
+  const { notifications, markAllRead, addLikeNotification } = useNotifications();
+
+  // 画面に入ったら未読を既読にする(ヘッダーの赤丸が消える)。
+  useEffect(() => {
+    markAllRead();
+  }, [markAllRead]);
+
   return (
     <View style={styles.root}>
       <ScreenGlow />
@@ -36,15 +47,22 @@ export default function NotificationsScreen() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          {NOTICES.map((n) => (
+          {notifications.map((n) => (
             <GlassCard key={n.id} style={styles.row}>
-              <View style={styles.icon}>{n.icon}</View>
+              <View style={styles.icon}>{iconFor(n.type)}</View>
               <Text style={styles.text} numberOfLines={2}>
                 {t(n.textKey)}
               </Text>
               <Text style={styles.time}>{t(n.timeKey)}</Text>
             </GlassCard>
           ))}
+
+          {/* 開発用: いいね通知を受信する */}
+          <Pressable style={styles.devBtn} onPress={addLikeNotification}>
+            <Plus size={14} color={colors.textDim} />
+            <Text style={styles.devText}>{t("notifications.devAddLike")}</Text>
+          </Pressable>
+
           <Text style={styles.note}>{t("notifications.note")}</Text>
         </ScrollView>
       </SafeAreaView>
@@ -68,5 +86,19 @@ const styles = StyleSheet.create({
   },
   text: { flex: 1, color: colors.text, fontSize: 13, lineHeight: 18 },
   time: { color: colors.textFaint, fontSize: 11 },
+  devBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 6,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: colors.border,
+    backgroundColor: colors.glass,
+  },
+  devText: { color: colors.textDim, fontSize: 12, fontWeight: "600" },
   note: { color: colors.textFaint, fontSize: 11, marginTop: 8, marginLeft: 4 },
 });

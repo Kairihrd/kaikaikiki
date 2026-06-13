@@ -14,6 +14,7 @@ import { router } from "expo-router";
 import { Play } from "lucide-react-native";
 import { type Artwork } from "@/lib/mockData";
 import { genreMeta, usesPhoto } from "@/lib/genre";
+import { hapticBillboardTick } from "@/lib/haptics";
 import { colors } from "@/lib/theme";
 
 interface BillboardMosaicProps {
@@ -172,6 +173,7 @@ export default function BillboardMosaic({
             x: clamp(startRef.current.x + g.dx, -limit.x, limit.x),
             y: clamp(startRef.current.y + g.dy, -limit.y, limit.y),
           });
+          hapticBillboardTick(); // 「チリチリ」。内部で120msに1回へthrottle。
         },
         onPanResponderRelease: (_e, g) => {
           // 慣性。端ではリスナーがクランプして跳ねない。

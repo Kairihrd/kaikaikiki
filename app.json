@@ -27,7 +27,13 @@
     },
     "plugins": [
       "expo-router",
-      "expo-image"
+      "expo-image",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "プロフィール画像や作品の投稿に、写真ライブラリへのアクセスを使用します。"
+        }
+      ]
     ],
     "extra": {
       "router": {},

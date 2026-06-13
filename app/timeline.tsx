@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -40,13 +40,25 @@ import BottomNav from "@/components/BottomNav";
 import IconButton from "@/components/IconButton";
 import Tag from "@/components/Tag";
 import {
+  FEATURED_CREATOR,
   getSupportingTimelinePosts,
   getTimelinePosts,
   type TimelineMedia,
   type TimelinePost,
 } from "@/lib/mockData";
+import { usePosts } from "@/context/PostsContext";
+import { useProfile } from "@/context/ProfileContext";
+import { useNotifications } from "@/context/NotificationContext";
+import { hapticLight } from "@/lib/haptics";
 import { formatCount } from "@/lib/format";
 import { colors, gradient } from "@/lib/theme";
+
+// ユーザー投稿カードの背景グラデーション(写真が無い投稿用)。
+const USER_GRADIENT: readonly [string, string, string] = [
+  "#0b0d10",
+  "#1c2026",
+  "#05070a",
+];
 
 // 「フォロー」表記は使わない方針のため「サポート中」を使用する。
 const TABS = ["おすすめ", "サポート中"] as const;
@@ -75,9 +87,41 @@ export default function TimelineScreen() {
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const { height } = useWindowDimensions();
   const listRef = useRef<FlatList<TimelinePost>>(null);
+  const { posts: userPosts } = usePosts();
+  const { profile } = useProfile();
+  const { addLikeNotification } = useNotifications();
 
-  const posts =
-    activeTab === "おすすめ" ? getTimelinePosts() : getSupportingTimelinePosts();
+  // ユーザー自身の投稿を TimelinePost に変換(「おすすめ」の先頭に表示)。
+  const userTimeline = useMemo<TimelinePost[]>(
+    () =>
+      userPosts.map((p) => ({
+        id: p.id,
+        category: p.genre,
+        title: p.title,
+        creatorName: profile.name ?? "あなた",
+        username: FEATURED_CREATOR.handle,
+        avatarUrl: profile.avatarUri ?? FEATURED_CREATOR.avatarUrl,
+        description: p.caption,
+        body: p.imageUri ? undefined : p.caption,
+        tags: [],
+        likes: 0,
+        comments: 0,
+        soundLabel: "オリジナル投稿",
+        mediaType: p.imageUri ? "image" : "poem",
+        imageUrl: p.imageUri,
+        gradient: USER_GRADIENT,
+        accent: colors.cyan,
+      })),
+    [userPosts, profile],
+  );
+
+  const posts = useMemo<TimelinePost[]>(
+    () =>
+      activeTab === "おすすめ"
+        ? [...userTimeline, ...getTimelinePosts()]
+        : getSupportingTimelinePosts(),
+    [activeTab, userTimeline],
+  );
 
   const switchTab = (tab: Tab) => {
     setActiveTab(tab);
@@ -85,14 +129,22 @@ export default function TimelineScreen() {
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
   };
 
-  const toggleLike = useCallback((id: string) => {
-    setLikedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
+  const toggleLike = useCallback(
+    (id: string) => {
+      setLikedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+          hapticLight(); // いいね時の軽い振動
+          addLikeNotification(); // 「いいねされた」疑似通知を追加
+        }
+        return next;
+      });
+    },
+    [addLikeNotification],
+  );
 
   // 各アイテムは画面高さぴったり。これで1画面1投稿にスナップする。
   const getItemLayout = useCallback(
@@ -292,14 +344,25 @@ function PostMedia({ post }: { post: TimelinePost }) {
   const hasImage = !!post.imageUrl;
   return (
     <View style={StyleSheet.absoluteFill}>
-      {/* 背景: 画像 or グラデーション */}
+      {/* 背景: 画像 or グラデーション。
+          写真は切れないよう contain 表示。背景はぼかした同じ画像 + 黒で自然に埋める。 */}
       {hasImage ? (
-        <Image
-          source={{ uri: post.imageUrl }}
-          style={StyleSheet.absoluteFill}
-          contentFit="cover"
-          transition={250}
-        />
+        <>
+          <Image
+            source={{ uri: post.imageUrl }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            blurRadius={30}
+            transition={250}
+          />
+          <View style={[StyleSheet.absoluteFill, styles.dim]} />
+          <Image
+            source={{ uri: post.imageUrl }}
+            style={StyleSheet.absoluteFill}
+            contentFit="contain"
+            transition={250}
+          />
+        </>
       ) : (
         <LinearGradient
           colors={post.gradient}
@@ -509,6 +572,7 @@ function ActionButton({
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   card: { width: "100%", backgroundColor: colors.bg },
+  dim: { backgroundColor: "rgba(0,0,0,0.5)" },
 
   // ヘッダー(固定オーバーレイ)
   headerSafe: { position: "absolute", top: 0, left: 0, right: 0 },

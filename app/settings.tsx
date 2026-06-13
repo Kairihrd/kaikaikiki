@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Globe,
   Lock,
+  LogOut,
   Moon,
   UserCog,
   X,
@@ -25,6 +26,7 @@ import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import GlassCard from "@/components/GlassCard";
 import { useLanguage } from "@/context/LanguageContext";
+import { useAuth } from "@/context/AuthContext";
 import { LANGS, labelForLang } from "@/lib/i18n";
 import { colors, radius } from "@/lib/theme";
 
@@ -32,6 +34,7 @@ import { colors, radius } from "@/lib/theme";
 // 言語選択はアプリ全体の言語状態(LanguageContext)を更新する。
 export default function SettingsScreen() {
   const { lang, setLang, t } = useLanguage();
+  const { signOut } = useAuth();
   const [push, setPush] = useState(true);
   const [darkMode, setDarkMode] = useState(true);
   const [langOpen, setLangOpen] = useState(false);
@@ -87,6 +90,24 @@ export default function SettingsScreen() {
               icon={<Moon size={18} color={colors.cyan} />}
               label={t("settings.darkMode")}
               right={<Switch value={darkMode} onValueChange={setDarkMode} />}
+            />
+          </GlassCard>
+
+          {/* ログアウト */}
+          <GlassCard style={styles.card}>
+            <Row
+              icon={<LogOut size={18} color={colors.pink} />}
+              label={t("auth.logout")}
+              onPress={() =>
+                Alert.alert(t("auth.logout"), t("auth.logoutConfirm"), [
+                  { text: "キャンセル", style: "cancel" },
+                  {
+                    text: t("auth.logout"),
+                    style: "destructive",
+                    onPress: () => signOut(),
+                  },
+                ])
+              }
             />
           </GlassCard>
 

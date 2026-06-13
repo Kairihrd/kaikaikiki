@@ -102,6 +102,32 @@ const ja: Dict = {
   "theme.monthlyTheme": "今月のテーマ",
   "theme.participatingLabel": "このテーマの参加作品",
   "theme.themePrefix": "テーマ",
+  // 認証(Phase 3。MVP・他言語は日本語フォールバック)
+  "auth.loginTitle": "ログイン",
+  "auth.registerTitle": "新規登録",
+  "auth.email": "メールアドレス",
+  "auth.password": "パスワード",
+  "auth.confirmPassword": "パスワード(確認)",
+  "auth.loginCta": "ログイン",
+  "auth.registerCta": "登録する",
+  "auth.toRegister": "アカウントをお持ちでない方は 新規登録",
+  "auth.toLogin": "アカウントをお持ちの方は ログイン",
+  "auth.errEmail": "メールアドレスの形式が正しくありません",
+  "auth.errPassword": "パスワードは6文字以上で入力してください",
+  "auth.errMismatch": "パスワードが一致しません",
+  "auth.errExists": "このメールアドレスは登録済みです",
+  "auth.errNoUser": "メールアドレスまたはパスワードが違います",
+  "auth.logout": "ログアウト",
+  "auth.logoutConfirm": "ログアウトしますか?",
+  "auth.tagline": "毎日100人のクリエイターと出会う",
+  "auth.demoButton": "デモでログイン",
+  "auth.demoAccount": "デモアカウント",
+  // 通知(動的)
+  "notif.likeDynamic": "誰かがあなたの作品にいいねしました",
+  "time.now": "たった今",
+  "notifications.devAddLike": "いいねを受信(開発用)",
+  "messages.devReceive": "DMを受信(開発用)",
+  "messages.unreadOne": "未読のメッセージが1件あります",
 };
 
 const en: Dict = {

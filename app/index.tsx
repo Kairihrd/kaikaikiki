@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
-import { router } from "expo-router";
+import { router, Stack } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Check, SlidersHorizontal, Sparkles, X } from "lucide-react-native";
 import ScreenGlow from "@/components/ScreenGlow";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import BillboardMosaic from "@/components/BillboardMosaic";
-import FloatingPostButton from "@/components/FloatingPostButton";
 import {
   GENRES,
   getTodaysBillboardArtworks,
@@ -34,6 +33,8 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.root}>
+      {/* ① ハニカムの2Dパン優先。iOSの横スワイプ戻りを無効化(この画面のみ) */}
+      <Stack.Screen options={{ gestureEnabled: false }} />
       <ScreenGlow />
       <SafeAreaView edges={["top"]} style={styles.safe}>
         <AppHeader subtitle={t("header.billboard")} />
@@ -65,9 +66,6 @@ export default function HomeScreen() {
           <BillboardMosaic artworks={artworks} highlightId={highlightId} />
         </View>
       </SafeAreaView>
-
-      {/* X風フローティング投稿ボタン(今日のビルボードに応募) */}
-      <FloatingPostButton mode="billboard" accessibilityLabel="今日のビルボードに投稿" />
 
       <BottomNav />
 
