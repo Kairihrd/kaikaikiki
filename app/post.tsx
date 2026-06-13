@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -21,12 +22,25 @@ import { colors, radius } from "@/lib/theme";
 // 6. 投稿(MVPでは実アップロードなし。フォーム + プレビューのみ)
 export default function PostScreen() {
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [tags, setTags] = useState("");
   const [genre, setGenre] = useState<string>(GENRES[0]);
   const [joinBillboard, setJoinBillboard] = useState(true);
   const [allowAi, setAllowAi] = useState(true);
 
   // MVP: 実際の保存はせず、投稿後はマイページへ遷移する
-  const handleSubmit = () => router.push("/profile");
+  const handleSubmit = () =>
+    Alert.alert(
+      "投稿しました",
+      `「${title || "無題"}」を${joinBillboard ? "今日のビルボード候補として" : ""}投稿しました。`,
+      [{ text: "マイページへ", onPress: () => router.push("/profile") }],
+    );
+
+  const handlePreview = () =>
+    Alert.alert(
+      "プレビュー",
+      `タイトル: ${title || "（未入力）"}\nジャンル: ${genre}\n説明: ${description || "（未入力）"}`,
+    );
 
   return (
     <View style={styles.root}>
@@ -67,6 +81,8 @@ export default function PostScreen() {
 
             <Field label="説明文">
               <TextInput
+                value={description}
+                onChangeText={setDescription}
                 multiline
                 numberOfLines={3}
                 placeholder="作品にこめた想いや背景を書いてみましょう"
@@ -100,6 +116,8 @@ export default function PostScreen() {
 
             <Field label="タグ">
               <TextInput
+                value={tags}
+                onChangeText={setTags}
                 placeholder="#写真 #光と影 (スペース区切り)"
                 placeholderTextColor={colors.textFaint}
                 style={styles.input}
@@ -124,7 +142,7 @@ export default function PostScreen() {
 
           {/* ボタン */}
           <View style={styles.buttons}>
-            <Pressable style={styles.previewButton}>
+            <Pressable style={styles.previewButton} onPress={handlePreview}>
               <Text style={styles.previewText}>プレビュー</Text>
             </Pressable>
             <GradientButton label="投稿する" onPress={handleSubmit} style={styles.flex1} />

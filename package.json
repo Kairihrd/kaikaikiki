@@ -8,7 +8,12 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dev": "expo start --port 8082",
+    "dev:clear": "expo start --clear --port 8082",
+    "dev:ios": "expo start --clear --localhost --ios --port 8082",
+    "dev:tunnel": "expo start --tunnel --port 8082",
+    "demo": "expo start --no-dev --minify --port 8082"
   },
   "dependencies": {
     "expo": "~56.0.11",

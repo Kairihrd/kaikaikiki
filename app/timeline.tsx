@@ -1,7 +1,8 @@
 import { useState } from "react";
 import {
+  Alert,
   Pressable,
-  ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -26,21 +27,42 @@ import IconButton from "@/components/IconButton";
 import Tag from "@/components/Tag";
 import {
   FEATURED_ARTWORK,
-  FEATURED_CREATOR,
-  getTodaysArtworks,
+  getCreatorByHandle,
+  getFollowingArtworks,
+  getRecommendedArtworks,
 } from "@/lib/mockData";
 import { formatCount } from "@/lib/format";
 import { colors, gradient } from "@/lib/theme";
 
-const TABS = ["おすすめ", "新着", "サポーターが注目", "テーマ"];
+const TABS = ["おすすめ", "フォロー"] as const;
+type Tab = (typeof TABS)[number];
 
 // 3. タイムライン(1作品を大きく見せる縦型ビュー)
-// 今は1作品固定。将来は縦スワイプで getTodaysArtworks() を切り替えられるよう分離。
+// タブで「おすすめ」「フォロー(サポート中クリエイター)」の作品を切り替える。
 export default function TimelineScreen() {
-  const [activeTab, setActiveTab] = useState(TABS[0]);
-  const artwork = FEATURED_ARTWORK;
-  const creator = FEATURED_CREATOR;
-  void getTodaysArtworks(); // 将来のスワイプ用
+  const [activeTab, setActiveTab] = useState<Tab>("おすすめ");
+  const [liked, setLiked] = useState(false);
+
+  const list =
+    activeTab === "おすすめ" ? getRecommendedArtworks() : getFollowingArtworks();
+  const artwork = list[0] ?? FEATURED_ARTWORK;
+  const creator = getCreatorByHandle(artwork.creatorHandle);
+  const likeCount = artwork.likes + (liked ? 1 : 0);
+
+  const switchTab = (tab: Tab) => {
+    setActiveTab(tab);
+    setLiked(false);
+  };
+
+  const onShare = async () => {
+    try {
+      await Share.share({
+        message: `${artwork.title} / ${creator.name} — Billdist`,
+      });
+    } catch {
+      Alert.alert("シェア", "共有しました");
+    }
+  };
 
   return (
     <View style={styles.root}>
@@ -76,16 +98,15 @@ export default function TimelineScreen() {
             </View>
           </View>
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tabs}
-          >
+          <View style={styles.tabs}>
             {TABS.map((tab) => (
               <Pressable
                 key={tab}
-                onPress={() => setActiveTab(tab)}
-                style={[styles.tab, activeTab === tab ? styles.tabActive : styles.tabInactive]}
+                onPress={() => switchTab(tab)}
+                style={[
+                  styles.tab,
+                  activeTab === tab ? styles.tabActive : styles.tabInactive,
+                ]}
               >
                 <Text
                   style={[styles.tabText, activeTab === tab && styles.tabTextActive]}
@@ -94,7 +115,7 @@ export default function TimelineScreen() {
                 </Text>
               </Pressable>
             ))}
-          </ScrollView>
+          </View>
 
           <View style={styles.badgeWrap}>
             <LinearGradient
@@ -120,18 +141,36 @@ export default function TimelineScreen() {
             <UserPlus size={12} color={colors.text} />
           </LinearGradient>
         </Pressable>
-        <ActionButton icon={<Heart size={26} color={colors.text} />} label={formatCount(artwork.likes)} />
+        <ActionButton
+          icon={
+            <Heart
+              size={26}
+              color={liked ? colors.pink : colors.text}
+              fill={liked ? colors.pink : "transparent"}
+            />
+          }
+          label={formatCount(likeCount)}
+          onPress={() => setLiked((v) => !v)}
+        />
         <ActionButton
           icon={<MessageCircle size={26} color={colors.text} />}
           label={formatCount(artwork.comments)}
+          onPress={() => router.push(`/artwork/${artwork.id}`)}
         />
-        <ActionButton icon={<Share2 size={26} color={colors.text} />} label="シェア" />
-        <ActionButton icon={<MoreVertical size={26} color={colors.text} />} />
+        <ActionButton
+          icon={<Share2 size={26} color={colors.text} />}
+          label="シェア"
+          onPress={onShare}
+        />
+        <ActionButton
+          icon={<MoreVertical size={26} color={colors.text} />}
+          onPress={() => router.push(`/artwork/${artwork.id}`)}
+        />
       </View>
 
       {/* 左下: 作品情報 */}
       <View style={styles.info}>
-        <Text style={styles.genre}>写真・デジタルアート</Text>
+        <Text style={styles.genre}>{artwork.genre}</Text>
         <Text style={styles.title}>{artwork.title}</Text>
         <Text style={styles.creatorLine}>
           {creator.name} <Text style={styles.handle}>{creator.handle}</Text>
@@ -144,7 +183,7 @@ export default function TimelineScreen() {
         </View>
         <View style={styles.sound}>
           <Music size={14} color={colors.cyan} />
-          <Text style={styles.soundText}>オリジナルサウンド - カナタ</Text>
+          <Text style={styles.soundText}>オリジナルサウンド - {creator.name}</Text>
         </View>
       </View>
 
@@ -156,12 +195,17 @@ export default function TimelineScreen() {
 function ActionButton({
   icon,
   label,
+  onPress,
 }: {
   icon: React.ReactNode;
   label?: string;
+  onPress?: () => void;
 }) {
   return (
-    <Pressable style={styles.action}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+    >
       <View style={styles.actionIcon}>{icon}</View>
       {label ? <Text style={styles.actionLabel}>{label}</Text> : null}
     </Pressable>
@@ -179,10 +223,10 @@ const styles = StyleSheet.create({
   },
   logo: { color: colors.text, fontSize: 20, fontWeight: "800", letterSpacing: -0.5 },
   topActions: { flexDirection: "row", gap: 8 },
-  tabs: { gap: 8, paddingVertical: 12 },
+  tabs: { flexDirection: "row", gap: 8, paddingVertical: 12 },
   tab: {
     borderRadius: 999,
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingVertical: 6,
   },
   tabActive: { backgroundColor: colors.text },
@@ -218,6 +262,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   action: { alignItems: "center", gap: 4 },
+  actionPressed: { opacity: 0.6, transform: [{ scale: 0.92 }] },
   actionIcon: {
     width: 48,
     height: 48,

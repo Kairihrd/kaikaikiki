@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Sparkles, Star, Users } from "lucide-react-native";
@@ -71,6 +71,12 @@ export default function ThemeScreen() {
               label="テーマ詳細"
               variant="ring"
               icon={<Star size={16} color={colors.text} />}
+              onPress={() =>
+                Alert.alert(
+                  `テーマ：${CURRENT_THEME}`,
+                  "今月のお題は「境界」。境界線を越える/境界を感じる作品を募集中です。あなたの視点で“境界”を表現してみましょう。",
+                )
+              }
             />
           </View>
 

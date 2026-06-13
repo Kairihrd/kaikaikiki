@@ -246,11 +246,28 @@ export function getCommentsForArtwork(id: string): Comment[] {
   ];
 }
 
+// 応援(サポート/フォロー)しているクリエイターのハンドル
+export const SUPPORTING_HANDLES = [
+  "@yuki_visuals",
+  "@ren_arch",
+  "@mio_paints",
+  "@aya_mode",
+  "@kai_digital",
+];
+
 // サポーター中ページ用: 応援しているクリエイター数名
 export function getSupportingCreators(): Creator[] {
-  return ["@yuki_visuals", "@ren_arch", "@mio_paints", "@aya_mode", "@kai_digital"].map(
-    (h) => getCreatorByHandle(h),
-  );
+  return SUPPORTING_HANDLES.map((h) => getCreatorByHandle(h));
+}
+
+// タイムライン「おすすめ」: 注目度(いいね数)の高い順
+export function getRecommendedArtworks(): Artwork[] {
+  return [...ARTWORKS].sort((a, b) => b.likes - a.likes);
+}
+
+// タイムライン「フォロー」: フォロー/サポート中クリエイターの作品
+export function getFollowingArtworks(): Artwork[] {
+  return ARTWORKS.filter((a) => SUPPORTING_HANDLES.includes(a.creatorHandle));
 }
 
 export const GENRES: Genre[] = [

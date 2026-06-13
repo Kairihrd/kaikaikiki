@@ -1,19 +1,40 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { SlidersHorizontal, Sparkles, Users } from "lucide-react-native";
+import { Check, SlidersHorizontal, Sparkles, Users, X } from "lucide-react-native";
 import ScreenGlow from "@/components/ScreenGlow";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import BillboardMosaic from "@/components/BillboardMosaic";
 import StatCard from "@/components/StatCard";
 import Countdown from "@/components/Countdown";
-import { CURRENT_THEME, getTodaysArtworks } from "@/lib/mockData";
+import {
+  CURRENT_THEME,
+  GENRES,
+  getTodaysArtworks,
+  type Genre,
+} from "@/lib/mockData";
 import { colors, radius } from "@/lib/theme";
 
 // 1. 今日のビルボード(アプリのメイン画面)
 export default function HomeScreen() {
-  const artworks = getTodaysArtworks();
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [genre, setGenre] = useState<Genre | null>(null);
+
+  const all = getTodaysArtworks();
+  const artworks = genre ? all.filter((a) => a.genre === genre) : all;
+  // フィルタ後も注目作品(id:1)があれば中央に、無ければ先頭を中央にする。
+  const highlightId = artworks.some((a) => a.id === "1")
+    ? "1"
+    : artworks[0]?.id;
 
   return (
     <View style={styles.root}>
@@ -51,8 +72,8 @@ export default function HomeScreen() {
             </Pressable>
           </View>
 
-          {/* ビルボード(最重要) */}
-          <BillboardMosaic artworks={artworks} highlightId="1" />
+          {/* ビルボード(最重要・中央集合型) */}
+          <BillboardMosaic artworks={artworks} highlightId={highlightId} />
 
           {/* 下部: 次の更新 / フィルター */}
           <View style={styles.footer}>
@@ -63,18 +84,82 @@ export default function HomeScreen() {
                 style={styles.countdown}
               />
             </View>
-            <Pressable style={[styles.footerCard, styles.filter]}>
+            <Pressable
+              style={[styles.footerCard, styles.filter]}
+              onPress={() => setFilterOpen(true)}
+            >
               <SlidersHorizontal size={16} color={colors.textDim} />
               <View>
                 <Text style={styles.footerLabel}>フィルター</Text>
-                <Text style={styles.filterValue}>すべてのジャンル</Text>
+                <Text style={styles.filterValue}>{genre ?? "すべてのジャンル"}</Text>
               </View>
             </Pressable>
           </View>
         </ScrollView>
       </SafeAreaView>
       <BottomNav />
+
+      {/* ジャンルフィルター(簡易モーダル) */}
+      <Modal
+        visible={filterOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setFilterOpen(false)}
+      >
+        <Pressable style={styles.backdrop} onPress={() => setFilterOpen(false)}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>ジャンルで絞り込む</Text>
+              <Pressable onPress={() => setFilterOpen(false)} accessibilityLabel="閉じる">
+                <X size={22} color={colors.textDim} />
+              </Pressable>
+            </View>
+
+            <FilterRow
+              label="すべてのジャンル"
+              active={genre === null}
+              onPress={() => {
+                setGenre(null);
+                setFilterOpen(false);
+              }}
+            />
+            {GENRES.map((g) => (
+              <FilterRow
+                key={g}
+                label={g}
+                active={genre === g}
+                onPress={() => {
+                  setGenre(g);
+                  setFilterOpen(false);
+                }}
+              />
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
+  );
+}
+
+function FilterRow({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[styles.filterRow, active && styles.filterRowActive]}
+    >
+      <Text style={[styles.filterRowText, active && styles.filterRowTextActive]}>
+        {label}
+      </Text>
+      {active ? <Check size={18} color={colors.cyan} /> : null}
+    </Pressable>
   );
 }
 
@@ -116,4 +201,38 @@ const styles = StyleSheet.create({
   countdown: { color: colors.cyan, fontSize: 15, fontWeight: "700", marginTop: 2 },
   filter: { flexDirection: "row", alignItems: "center", gap: 10 },
   filterValue: { color: colors.text, fontSize: 14, fontWeight: "700", marginTop: 2 },
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    backgroundColor: "#0c0c0f",
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    borderColor: colors.border,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 36,
+    gap: 4,
+  },
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  sheetTitle: { color: colors.text, fontSize: 16, fontWeight: "800" },
+  filterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: radius.md,
+  },
+  filterRowActive: { backgroundColor: colors.glassStrong },
+  filterRowText: { color: colors.textDim, fontSize: 15 },
+  filterRowTextActive: { color: colors.text, fontWeight: "700" },
 });
