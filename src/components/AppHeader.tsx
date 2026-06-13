@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { router, usePathname } from "expo-router";
 import { ArrowLeft, Bell, MessageCircle, MoreHorizontal } from "lucide-react-native";
 import IconButton from "./IconButton";
@@ -37,7 +37,12 @@ export default function AppHeader({
         ) : null}
         {!centerTitle ? (
           <Pressable onPress={() => router.push("/")}>
-            <Text style={styles.logo}>senseed</Text>
+            <Image
+              source={require("../../assets/logo-wide.png")}
+              style={styles.logoImg}
+              resizeMode="contain"
+              accessibilityLabel="senseed"
+            />
             {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
           </Pressable>
         ) : null}
@@ -46,14 +51,22 @@ export default function AppHeader({
       {/* 中央タイトル */}
       {centerTitle ? (
         <View style={styles.center}>
-          <Text style={styles.logo}>senseed</Text>
+          <Image
+            source={require("../../assets/logo-wide.png")}
+            style={styles.logoImg}
+            resizeMode="contain"
+            accessibilityLabel="senseed"
+          />
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
       ) : null}
 
       {/* 右: 通知 + DM(+ メニュー) */}
       <View style={styles.side}>
-        <IconButton accessibilityLabel="通知">
+        <IconButton
+          accessibilityLabel="通知"
+          onPress={() => router.push("/notifications")}
+        >
           <Bell size={20} color={colors.text} />
         </IconButton>
         {!onDM ? (
@@ -91,11 +104,10 @@ const styles = StyleSheet.create({
   center: {
     alignItems: "center",
   },
-  logo: {
-    color: colors.text,
-    fontSize: 20,
-    fontWeight: "800",
-    letterSpacing: -0.5,
+  // 横長 SENSEED ロゴ画像(透過PNG)。黒背景に馴染む。右側アイコンに被らないサイズ。
+  logoImg: {
+    width: 72,
+    height: 26,
   },
   subtitle: {
     color: colors.textFaint,

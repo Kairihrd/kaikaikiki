@@ -143,7 +143,12 @@ export default function TimelineScreen() {
         <View style={styles.top} pointerEvents="box-none">
           <View style={styles.topRow}>
             <Pressable onPress={() => router.push("/")}>
-              <Text style={styles.logo}>senseed</Text>
+              <Image
+                source={require("../assets/logo-wide.png")}
+                style={styles.logoImg}
+                contentFit="contain"
+                accessibilityLabel="senseed"
+              />
             </Pressable>
             <View style={styles.topActions}>
               <IconButton accessibilityLabel="検索">
@@ -513,7 +518,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  logo: { color: colors.text, fontSize: 20, fontWeight: "800", letterSpacing: -0.5 },
+  logoImg: { width: 72, height: 26 },
   topActions: { flexDirection: "row", gap: 8 },
   tabs: { flexDirection: "row", gap: 8, paddingVertical: 12 },
   tab: { borderRadius: 999, paddingHorizontal: 18, paddingVertical: 6 },
