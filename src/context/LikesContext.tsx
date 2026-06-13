@@ -14,6 +14,8 @@ const LIKES_KEY = "senseed:likes";
 
 interface LikesContextValue {
   loaded: boolean;
+  /** いいねした作品数(プロフィールの実値表示などに使う)。 */
+  likeCount: number;
   isLiked: (id: string) => boolean;
   /** いいねをトグルし、トグル後にいいね済みなら true を返す。 */
   toggleLike: (id: string) => boolean;
@@ -21,6 +23,7 @@ interface LikesContextValue {
 
 const LikesContext = createContext<LikesContextValue>({
   loaded: false,
+  likeCount: 0,
   isLiked: () => false,
   toggleLike: () => false,
 });
@@ -51,6 +54,7 @@ export function LikesProvider({ children }: { children: ReactNode }) {
   const value = useMemo<LikesContextValue>(
     () => ({
       loaded,
+      likeCount: Object.keys(liked).length,
       isLiked: (id) => !!liked[id],
       toggleLike: (id) => {
         const willLike = !liked[id];

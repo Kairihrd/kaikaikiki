@@ -31,6 +31,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import { usePosts, type UserPost } from "@/context/PostsContext";
 import { useProfile } from "@/context/ProfileContext";
 import { useSupport } from "@/context/SupportContext";
+import { useLikes } from "@/context/LikesContext";
 import { useAuth } from "@/context/AuthContext";
 import { TARGET_LABEL } from "@/lib/userPost";
 import { formatCount } from "@/lib/format";
@@ -57,6 +58,7 @@ export default function ProfileScreen() {
   // マイページには「自分が投稿した作品」だけを表示する。
   const { posts, featuredPost, setFeatured } = usePosts();
   const { supports } = useSupport();
+  const { likeCount } = useLikes();
   const [pinPickerOpen, setPinPickerOpen] = useState(false);
   // Senseed Status。表現=投稿数(PostsContext)、発掘=サポート数(SupportContext)の実データ。
   const status = getSenseedStatus(posts.length, supports.length);
@@ -93,16 +95,12 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
 
-          {/* ステータスカード(「サポート中」=自分がサポートした作品。タップで /supporting へ) */}
+          {/* ステータスカード(実値のみ表示。サポート中=自分の支援数 / いいね=自分のいいね数) */}
           <View style={styles.stats}>
             <Pressable style={styles.statItem} onPress={() => router.push("/supporting")}>
               <StatCard value={formatCount(supports.length)} label="サポート中" />
             </Pressable>
-            <StatCard style={styles.statItem} value="328" label={t("profile.likedWorks")} />
-          </View>
-          <View style={styles.stats}>
-            <StatCard style={styles.statItem} value="56" label={t("profile.commentsStat")} />
-            <StatCard style={styles.statItem} value="12" label={t("profile.collections")} />
+            <StatCard style={styles.statItem} value={formatCount(likeCount)} label="いいね" />
           </View>
 
           {/* Senseed Status(行動で伸びる2つのステータス) */}
