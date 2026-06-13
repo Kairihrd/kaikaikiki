@@ -19,6 +19,7 @@
     "sim:reset": "xcrun simctl terminate booted host.exp.Exponent || true && xcrun simctl uninstall booted host.exp.Exponent || true"
   },
   "dependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~56.0.11",
     "expo-constants": "~56.0.18",
     "expo-image": "~56.0.11",

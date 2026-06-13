@@ -1,4 +1,4 @@
-"""Resonance Agent (Billdist) — 感性プロファイル生成 + 2種類の推薦"""
+"""Resonance Agent (senseed) — 感性プロファイル生成 + 2種類の推薦"""
 from __future__ import annotations
 import json, math, os, sys
 from typing import Any
@@ -75,7 +75,7 @@ Return ONLY valid JSON in this format (no extra text):
 }"""
 
     response = client.models.generate_content(
-        model="gemini-3.5-flash",
+        model="gemini-2.5-flash",
         contents=prompt
     )
 
@@ -137,7 +137,7 @@ def generate_cross_genre_recommendations(client: genai.Client, vector: Sensibili
               "Return ONLY valid JSON in this format (no extra text):\n"
               '{"works": [{"title": "...","creator": "...","genre": "...","why_it_resonates": "..."}]}')
     response = client.models.generate_content(
-        model="gemini-3.5-flash",
+        model="gemini-2.5-flash",
         contents=prompt
     )
     try:

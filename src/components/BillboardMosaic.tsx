@@ -10,8 +10,9 @@ import {
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { Music, Play } from "lucide-react-native";
+import { Play } from "lucide-react-native";
 import { type Artwork } from "@/lib/mockData";
+import { genreMeta, usesPhoto } from "@/lib/genre";
 import { colors, radius } from "@/lib/theme";
 
 interface BillboardMosaicProps {
@@ -105,10 +106,17 @@ export default function BillboardMosaic({ artworks }: BillboardMosaicProps) {
 }
 
 // 1枚のビルボードカード(角丸四角)。タップで作品詳細へ遷移し、押すと軽くスケールする。
+// ジャンルに応じて写真カード / グラデーション+アイコンカード / 文章カードを出し分け、
+// 右上に必ずジャンルバッジを表示して「どの創作ジャンルか」がひと目で分かるようにする。
 function BillboardCard({ slot }: { slot: Slot }) {
   // 安定した Animated.Value(refのrender中アクセスを避けるため useState で遅延初期化)
   const [scale] = useState(() => new Animated.Value(1));
-  const large = slot.w >= 110; // タイトルを出すのは中〜大カードのみ
+  const large = slot.w >= 110; // タイトル/本文を出すのは中〜大カードのみ
+  const art = slot.art;
+  const meta = genreMeta(art.genre);
+  const photo = usesPhoto(art.genre);
+  const Icon = meta.Icon;
+  const iconSize = Math.max(16, Math.min(slot.w, slot.h) * 0.26);
 
   const pressIn = () =>
     Animated.spring(scale, {
@@ -127,7 +135,7 @@ function BillboardCard({ slot }: { slot: Slot }) {
 
   return (
     <Pressable
-      onPress={() => router.push(`/artwork/${slot.art.id}`)}
+      onPress={() => router.push(`/artwork/${art.id}`)}
       onPressIn={pressIn}
       onPressOut={pressOut}
       style={[styles.slot, { left: slot.x, top: slot.y }]}
@@ -138,34 +146,73 @@ function BillboardCard({ slot }: { slot: Slot }) {
           { width: slot.w, height: slot.h, transform: [{ scale }] },
         ]}
       >
-        <Image
-          source={{ uri: slot.art.imageUrl }}
-          style={StyleSheet.absoluteFill}
-          contentFit="cover"
-          transition={200}
-        />
+        {photo ? (
+          <Image
+            source={{ uri: art.imageUrl }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            transition={200}
+          />
+        ) : (
+          // 写真を使わないジャンル(音楽・文章・デジタル・その他)は
+          // グラデーション背景 + 中央アイコンで表現する。
+          <LinearGradient
+            colors={meta.gradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[StyleSheet.absoluteFill, styles.gradientCard]}
+          >
+            {/* 絵画はブラシ跡/色面のオーバーレイでキャンバス感を出す */}
+            {meta.visual === "paint" ? (
+              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                <View style={[styles.stroke, styles.strokeA, { backgroundColor: meta.accent }]} />
+                <View style={[styles.stroke, styles.strokeB]} />
+                <View style={[styles.stroke, styles.strokeC, { backgroundColor: meta.accent }]} />
+              </View>
+            ) : null}
+
+            {meta.visual === "text" && large ? (
+              <Text style={styles.snippet} numberOfLines={3}>
+                {art.description}
+              </Text>
+            ) : (
+              <Icon size={iconSize} color={meta.accent} />
+            )}
+          </LinearGradient>
+        )}
+
+        {/* 映像/パフォーマンスは中央に再生アイコン(大きめカードのみ) */}
+        {photo && meta.visual === "video" && large ? (
+          <View style={styles.playWrap} pointerEvents="none">
+            <View style={styles.playCircle}>
+              <Play size={16} color={colors.text} fill={colors.text} />
+            </View>
+          </View>
+        ) : null}
+
         {large ? (
           <LinearGradient
             colors={["transparent", "rgba(0,0,0,0.78)"]}
             style={styles.caption}
           >
             <Text style={styles.capTitle} numberOfLines={1}>
-              {slot.art.title}
+              {art.title}
             </Text>
             <Text style={styles.capName} numberOfLines={1}>
-              {slot.art.creatorName}
+              {art.creatorName}
             </Text>
           </LinearGradient>
         ) : null}
-        {slot.art.isVideo ? (
-          <View style={styles.badge}>
-            <Play size={10} color={colors.text} fill={colors.text} />
-          </View>
-        ) : slot.art.isAudio ? (
-          <View style={styles.badge}>
-            <Music size={10} color={colors.cyan} />
-          </View>
-        ) : null}
+
+        {/* ジャンルバッジ(右上・半透明・全カード共通) */}
+        <View style={styles.genreBadge}>
+          <Icon size={10} color={meta.accent} />
+          {large ? (
+            <Text style={[styles.genreBadgeText, { color: meta.accent }]} numberOfLines={1}>
+              {art.genre}
+            </Text>
+          ) : null}
+        </View>
       </Animated.View>
     </Pressable>
   );
@@ -197,15 +244,58 @@ const styles = StyleSheet.create({
   },
   capTitle: { color: colors.text, fontSize: 11, fontWeight: "700" },
   capName: { color: colors.textDim, fontSize: 9 },
-  badge: {
+  gradientCard: { alignItems: "center", justifyContent: "center", padding: 8 },
+  // 絵画カードのブラシ跡(回転した半透明バー)
+  stroke: { position: "absolute", borderRadius: 999, opacity: 0.35 },
+  strokeA: { top: "22%", left: "-10%", width: "75%", height: 18, transform: [{ rotate: "-12deg" }] },
+  strokeB: {
+    top: "52%",
+    left: "12%",
+    width: "85%",
+    height: 14,
+    backgroundColor: "rgba(255,255,255,0.5)",
+    transform: [{ rotate: "8deg" }],
+  },
+  strokeC: { top: "70%", left: "-6%", width: "60%", height: 12, transform: [{ rotate: "-5deg" }] },
+  snippet: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 18,
+    textAlign: "center",
+  },
+  playWrap: {
     position: "absolute",
-    top: 6,
-    right: 6,
-    width: 18,
-    height: 18,
-    borderRadius: 999,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     alignItems: "center",
     justifyContent: "center",
   },
+  playCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  // ジャンルバッジ(右上・半透明)
+  genreBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    maxWidth: "85%",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  genreBadgeText: { fontSize: 9, fontWeight: "700" },
 });

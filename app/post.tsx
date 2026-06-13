@@ -83,8 +83,8 @@ export default function PostScreen() {
             <View style={styles.uploadIcon}>
               <ImagePlus size={32} color={colors.cyan} />
             </View>
-            <Text style={styles.uploadTitle}>作品画像・動画・音楽を追加</Text>
-            <Text style={styles.uploadSub}>写真、イラスト、建築、音楽、映像など</Text>
+            <Text style={styles.uploadTitle}>作品画像・動画・音楽・文章を追加</Text>
+            <Text style={styles.uploadSub}>イラスト・写真・映像・音楽・文章・ファッション・立体・デジタルなど</Text>
           </Pressable>
 
           {/* 入力項目 */}

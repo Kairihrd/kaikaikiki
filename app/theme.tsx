@@ -1,4 +1,5 @@
-import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Sparkles, Star, Users } from "lucide-react-native";
@@ -10,13 +11,40 @@ import StatCard from "@/components/StatCard";
 import Countdown from "@/components/Countdown";
 import GradientButton from "@/components/GradientButton";
 import FloatingPostButton from "@/components/FloatingPostButton";
-import { CURRENT_THEME, getThemeBillboardArtworks } from "@/lib/mockData";
+import { getThemeBillboardArtworks } from "@/lib/mockData";
+import { generateTheme, useCurrentTheme } from "@/lib/themeApi";
 import { colors, radius } from "@/lib/theme";
 
-// 2. テーマビルボード(今月のテーマ「境界」)。ビルボード配下のサブ画面。
+// 2. テーマビルボード。ビルボード配下のサブ画面。
+// テーマ名/説明は backend の月間テーマ(API)に接続。未接続時は mock「境界」。
 export default function ThemeScreen() {
   // 【Sensedルール】テーマ参加作品から毎日入れ替わるビルボード。
   const artworks = getThemeBillboardArtworks();
+  const { theme, setTheme } = useCurrentTheme();
+  const [generating, setGenerating] = useState(false);
+
+  // 開発確認用: その月のテーマを AI 生成する(本番は月初cron/管理者専用の想定)。
+  const onGenerate = async () => {
+    setGenerating(true);
+    const result = await generateTheme();
+    setGenerating(false);
+    if (result) {
+      setTheme(result.theme);
+      Alert.alert(
+        "今月のテーマを生成しました",
+        `テーマ：${result.theme.title}\n${result.theme.description}\n\n${
+          result.usedAI
+            ? "AI（Gemini）で生成しました。"
+            : "ローカル候補から生成しました（AIキー未設定/失敗時のフォールバック）。"
+        }`,
+      );
+    } else {
+      Alert.alert(
+        "テーマ生成に失敗しました",
+        "AIサーバーに接続できませんでした。EXPO_PUBLIC_API_URL の設定と backend の起動を確認してください。",
+      );
+    }
+  };
 
   return (
     <View style={styles.root}>
@@ -38,10 +66,8 @@ export default function ThemeScreen() {
             <View style={styles.starWrap}>
               <Star size={26} color={colors.cyan} />
             </View>
-            <Text style={styles.title}>テーマ：{CURRENT_THEME}</Text>
-            <Text style={styles.desc}>
-              今月のお題：境界線を越える / 境界を感じる作品
-            </Text>
+            <Text style={styles.title}>テーマ：{theme.title}</Text>
+            <Text style={styles.desc}>{theme.description}</Text>
             <View style={styles.remain}>
               <Text style={styles.remainDim}>残り</Text>
               <Text style={styles.remainStrong}>12日</Text>
@@ -74,12 +100,20 @@ export default function ThemeScreen() {
               variant="ring"
               icon={<Star size={16} color={colors.text} />}
               onPress={() =>
-                Alert.alert(
-                  `テーマ：${CURRENT_THEME}`,
-                  "今月のお題は「境界」。境界線を越える/境界を感じる作品を募集中です。あなたの視点で“境界”を表現してみましょう。",
-                )
+                Alert.alert(`テーマ：${theme.title}`, theme.description)
               }
             />
+            {/* 開発確認用ボタン(本番は月初cron/管理者専用の想定) */}
+            <Pressable
+              style={styles.devButton}
+              onPress={onGenerate}
+              disabled={generating}
+            >
+              <Sparkles size={13} color={colors.textDim} />
+              <Text style={styles.devButtonText}>
+                {generating ? "生成中…" : "AIで今月のテーマを生成"}
+              </Text>
+            </Pressable>
           </View>
 
           {/* ビルボード */}
@@ -140,5 +174,18 @@ const styles = StyleSheet.create({
   remainStrong: { color: colors.cyan, fontSize: 14, fontWeight: "700" },
   stats: { flexDirection: "row", gap: 12 },
   statItem: { flex: 1 },
-  center: { alignItems: "center" },
+  center: { alignItems: "center", gap: 12 },
+  devButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: "dashed",
+    backgroundColor: colors.glass,
+  },
+  devButtonText: { color: colors.textDim, fontSize: 12, fontWeight: "600" },
 });

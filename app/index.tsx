@@ -26,17 +26,19 @@ import StatCard from "@/components/StatCard";
 import Countdown from "@/components/Countdown";
 import FloatingPostButton from "@/components/FloatingPostButton";
 import {
-  CURRENT_THEME,
   GENRES,
   getTodaysBillboardArtworks,
   type Genre,
 } from "@/lib/mockData";
+import { useCurrentTheme } from "@/lib/themeApi";
 import { colors, radius } from "@/lib/theme";
 
 // 1. 今日のビルボード(アプリのメイン画面)
 export default function HomeScreen() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [genre, setGenre] = useState<Genre | null>(null);
+  // 今月のテーマ(backend 接続時は API、未接続/失敗時は mock の「境界」)。
+  const { theme } = useCurrentTheme();
 
   // 【Sensedルール】毎日、表示回数の少ない人を優先して入れ替わるビルボード。
   const all = getTodaysBillboardArtworks();
@@ -75,7 +77,7 @@ export default function HomeScreen() {
             />
             <Pressable style={styles.statItem} onPress={() => router.push("/theme")}>
               <StatCard
-                value={`テーマ：${CURRENT_THEME}`}
+                value={`テーマ：${theme.title}`}
                 label="今月のお題を見る"
                 icon={<Sparkles size={15} color={colors.cyan} />}
                 right={<ChevronRight size={16} color={colors.textFaint} />}

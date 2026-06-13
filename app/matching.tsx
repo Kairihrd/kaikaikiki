@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -15,27 +17,186 @@ import BottomNav from "@/components/BottomNav";
 import GlassCard from "@/components/GlassCard";
 import {
   getDiscovery,
+  getLikedArtworksSample,
   getResonanceMatches,
   getSensibilityProfile,
+  type Creator,
+  type Discovery,
   type ResonanceMatch,
+  type SensibilityTrait,
 } from "@/lib/mockData";
 import { formatCount } from "@/lib/format";
 import { colors, gradient, radius } from "@/lib/theme";
 
+// backend(FastAPI)の URL。未設定ならモック表示のまま動作する。
+// 例: EXPO_PUBLIC_API_URL=http://127.0.0.1:8000 npx expo start
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
+// /resonance のレスポンス型
+interface ApiProfile { label: string; score: number }
+interface ApiMatch { id: string; name: string; genre: string; resonance: number; reason: string }
+interface ApiDiscovery { title: string; description: string }
+interface ApiResponse {
+  profile: ApiProfile[];
+  matches: ApiMatch[];
+  discoveries: ApiDiscovery[];
+  usedAI: boolean;
+}
+
+// --- 1日1回ルール(端末ローカル保存) -----------------------------------------
+// MVP ではログイン/DB が無いため、AsyncStorage で端末内に「最終解析日」を保存し、
+// 1ユーザー1日1回までに制限する(Gemini API の使用量を抑えるため)。
+const USER_ID = "current-user";
+const STORAGE_KEY = `senseed:matching:lastAnalysis:${USER_ID}`;
+
+// ローカル日付(YYYY-MM-DD)。日付が変われば再解析できる。
+function getToday(): string {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+interface StoredAnalysis {
+  date: string; // 最終解析日(YYYY-MM-DD)
+  usedAI: boolean;
+  result: { profile: SensibilityTrait[]; matches: ResonanceMatch[]; discovery: Discovery };
+  updatedAt: string;
+}
+
+// API の match(クリエイター名のみ)を、画面が使う Creator 付き ResonanceMatch に変換する。
+function toResonanceMatch(m: ApiMatch): ResonanceMatch {
+  const creator: Creator = {
+    id: m.id,
+    name: m.name,
+    handle: `@${m.name}`,
+    avatarUrl: `https://picsum.photos/seed/senseed-avatar-${encodeURIComponent(m.name)}/200/200`,
+    bio: "",
+    location: "",
+    role: "クリエイター",
+    supporterCount: 200 + m.resonance * 12,
+  };
+  return { id: m.id, creator, resonance: m.resonance, genre: m.genre, reason: m.reason };
+}
+
 // マッチング(Resonance Agent)
 // AIは作品を評価しない。いいね履歴から感性を推定し、ジャンルを越えた出会いを推薦する。
-// 現状はすべて mockData 駆動(Embedding / Claude API は未接続)。
+// EXPO_PUBLIC_API_URL が設定され backend が起動していれば API を使い、失敗時はモックにフォールバック。
 export default function MatchingScreen() {
-  const matches = getResonanceMatches();
-  const profile = getSensibilityProfile();
-  const discovery = getDiscovery();
+  const [matches, setMatches] = useState<ResonanceMatch[]>(() => getResonanceMatches());
+  const [profile, setProfile] = useState<SensibilityTrait[]>(() => getSensibilityProfile());
+  const [discovery, setDiscovery] = useState<Discovery>(() => getDiscovery());
+  const [loading, setLoading] = useState(false);
+  const [analyzedToday, setAnalyzedToday] = useState(false);
+  const [lastDate, setLastDate] = useState<string | null>(null);
   const top = matches[0];
 
-  const onReanalyze = () =>
-    Alert.alert(
-      "感性プロファイルを更新しました",
-      "最新のいいね履歴をもとに、あなたの感性プロファイルと共鳴相手を再計算しました。",
-    );
+  // 初回表示: 今日の解析結果が保存済みなら復元、無ければモックのまま。
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const saved: StoredAnalysis = JSON.parse(raw);
+        setLastDate(saved.date);
+        if (saved.date === getToday()) {
+          setAnalyzedToday(true);
+          if (saved.result?.profile?.length) setProfile(saved.result.profile);
+          if (saved.result?.matches?.length) setMatches(saved.result.matches);
+          if (saved.result?.discovery) setDiscovery(saved.result.discovery);
+        }
+      } catch {
+        // 破損データは無視してモック表示を継続
+      }
+    })();
+  }, []);
+
+  const onReanalyze = async () => {
+    // 1日1回ルール: 今日すでに解析済みなら API を呼ばず、保存済み結果のままにする。
+    if (analyzedToday) {
+      Alert.alert(
+        "今日のマッチング解析は完了しています。",
+        "明日また解析できます。",
+      );
+      return;
+    }
+    if (!API_URL) {
+      Alert.alert(
+        "感性プロファイルを更新しました",
+        "最新のいいね履歴をもとに再計算しました。（モック表示・AIサーバー未設定）",
+      );
+      return;
+    }
+    setLoading(true);
+    try {
+      // 写真だけに偏らないよう、多ジャンルから集めた「いいね作品」を渡す。
+      // これで AI がジャンル横断(文章・音楽・デジタル等)で推薦理由を作れる。
+      const likedArtworks = getLikedArtworksSample(6).map((a) => ({
+        id: a.id,
+        title: a.title,
+        genre: a.genre,
+        description: a.description,
+        tags: a.tags,
+      }));
+      const res = await fetch(`${API_URL}/resonance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ likedArtworks }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data: ApiResponse = await res.json();
+
+      const nextProfile = data.profile?.length
+        ? data.profile.map((p) => ({ label: p.label, value: p.score }))
+        : profile;
+      const nextMatches = data.matches?.length
+        ? data.matches.map(toResonanceMatch)
+        : matches;
+      const nextDiscovery = data.discoveries?.length
+        ? { title: data.discoveries[0].title, body: data.discoveries[0].description }
+        : discovery;
+
+      setProfile(nextProfile);
+      setMatches(nextMatches);
+      setDiscovery(nextDiscovery);
+
+      // HTTP 200 を受け取れたら(usedAI:true/false どちらでも)保存し、今日は解析済みにする。
+      const today = getToday();
+      const stored: StoredAnalysis = {
+        date: today,
+        usedAI: data.usedAI,
+        result: { profile: nextProfile, matches: nextMatches, discovery: nextDiscovery },
+        updatedAt: new Date().toISOString(),
+      };
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+      setAnalyzedToday(true);
+      setLastDate(today);
+
+      Alert.alert(
+        "感性プロファイルを更新しました",
+        data.usedAI
+          ? "Gemini を使って感性プロファイルと共鳴相手を再解析しました。"
+          : "ローカル解析で再計算しました（AIキー未設定）。",
+      );
+    } catch {
+      // API 接続失敗時は保存しない(=今日は未解析のまま再試行できる)。
+      Alert.alert(
+        "オフライン",
+        "AIサーバーに接続できないため、モック結果を表示しています。",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const statusText = analyzedToday
+    ? `今日の解析済み・明日また解析できます${lastDate ? `（最終解析：${lastDate.replace(/-/g, ".")}）` : ""}`
+    : "今日の解析はまだです";
+  const buttonLabel = loading
+    ? "解析中…"
+    : analyzedToday
+      ? "今日の解析済み"
+      : "今日のマッチングを解析する";
 
   const onOpenMatch = (m: ResonanceMatch) =>
     Alert.alert(
@@ -116,9 +277,24 @@ export default function MatchingScreen() {
                 </View>
               ))}
             </View>
-            <Pressable style={styles.reanalyze} onPress={onReanalyze}>
-              <RefreshCw size={15} color={colors.text} />
-              <Text style={styles.reanalyzeText}>再解析する</Text>
+            <View style={styles.statusRow}>
+              <Text style={[styles.statusText, analyzedToday && styles.statusDone]}>
+                {statusText}
+              </Text>
+            </View>
+            <Pressable
+              style={({ pressed }) => [
+                styles.reanalyze,
+                (pressed || loading) && styles.reanalyzePressed,
+                analyzedToday && styles.reanalyzeDone,
+              ]}
+              onPress={onReanalyze}
+              disabled={loading}
+            >
+              <RefreshCw size={15} color={analyzedToday ? colors.textDim : colors.text} />
+              <Text style={[styles.reanalyzeText, analyzedToday && styles.reanalyzeTextDone]}>
+                {buttonLabel}
+              </Text>
             </Pressable>
           </GlassCard>
 
@@ -237,7 +413,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.glass,
     paddingVertical: 11,
   },
+  reanalyzePressed: { opacity: 0.6 },
+  reanalyzeDone: { backgroundColor: "rgba(255,255,255,0.03)", borderColor: colors.border },
   reanalyzeText: { color: colors.text, fontSize: 14, fontWeight: "700" },
+  reanalyzeTextDone: { color: colors.textDim },
+  statusRow: { alignItems: "center" },
+  statusText: { color: colors.textFaint, fontSize: 11 },
+  statusDone: { color: colors.cyan },
 
   discoveryTitle: { color: colors.cyan, fontSize: 16, fontWeight: "800" },
   discoveryBody: { color: colors.textDim, fontSize: 13, lineHeight: 20 },

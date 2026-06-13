@@ -26,6 +26,7 @@ import {
   getTodaysArtworks,
   type Artwork,
 } from "@/lib/mockData";
+import { genreMeta } from "@/lib/genre";
 import { formatCount } from "@/lib/format";
 import { colors, gradient, radius } from "@/lib/theme";
 
@@ -130,17 +131,24 @@ export default function ProfileScreen() {
             ))}
           </View>
 
-          {/* 自分の作品グリッド */}
+          {/* 自分の作品グリッド(ジャンルバッジ付き) */}
           <View style={styles.grid}>
-            {myWorks.map((art) => (
-              <Pressable
-                key={art.id}
-                style={styles.gridItem}
-                onPress={() => router.push(`/artwork/${art.id}`)}
-              >
-                <Image source={{ uri: art.imageUrl }} style={styles.gridImage} contentFit="cover" />
-              </Pressable>
-            ))}
+            {myWorks.map((art) => {
+              const meta = genreMeta(art.genre);
+              const GenreIcon = meta.Icon;
+              return (
+                <Pressable
+                  key={art.id}
+                  style={styles.gridItem}
+                  onPress={() => router.push(`/artwork/${art.id}`)}
+                >
+                  <Image source={{ uri: art.imageUrl }} style={styles.gridImage} contentFit="cover" />
+                  <View style={styles.gridBadge}>
+                    <GenreIcon size={11} color={meta.accent} />
+                  </View>
+                </Pressable>
+              );
+            })}
           </View>
 
           {/* 下部メニュー */}
@@ -284,6 +292,17 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   gridImage: { width: "100%", height: "100%" },
+  gridBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   menu: { gap: 10 },
   menuRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16 },
   menuLabel: { color: colors.text, fontSize: 14, fontWeight: "600" },
