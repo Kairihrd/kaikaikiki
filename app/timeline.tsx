@@ -59,6 +59,11 @@ const USER_GRADIENT: readonly [string, string, string] = [
   "#05070a",
 ];
 
+// 画像が無い投稿でも「作品カード」に見せるためのデフォルトアート画像。
+// (アイコンだけのカードにせず、必ず画像をメイン面に表示する)
+const DEFAULT_TIMELINE_IMAGE =
+  "https://picsum.photos/seed/senseed-timeline-default/1000/1400?grayscale";
+
 // 「フォロー」表記は使わない方針のため「サポート中」を使用する。
 const TABS = ["おすすめ", "サポート中"] as const;
 type Tab = (typeof TABS)[number];
@@ -352,36 +357,25 @@ function PostCard({
 // 画像系は写真、それ以外はグラデーション + ジャンル別の演出で表現する。
 // ---------------------------------------------------------------------------
 function PostMedia({ post }: { post: TimelinePost }) {
-  const hasImage = !!post.imageUrl;
+  // 画像が無い投稿でもデフォルトのアート画像を使い、必ず画像をメイン面に出す。
+  const uri = post.imageUrl ?? DEFAULT_TIMELINE_IMAGE;
   return (
     <View style={StyleSheet.absoluteFill}>
-      {/* 背景: 画像 or グラデーション。
-          写真は切れないよう contain 表示。背景はぼかした同じ画像 + 黒で自然に埋める。 */}
-      {hasImage ? (
-        <>
-          <Image
-            source={{ uri: post.imageUrl }}
-            style={StyleSheet.absoluteFill}
-            contentFit="cover"
-            blurRadius={30}
-            transition={250}
-          />
-          <View style={[StyleSheet.absoluteFill, styles.dim]} />
-          <Image
-            source={{ uri: post.imageUrl }}
-            style={StyleSheet.absoluteFill}
-            contentFit="contain"
-            transition={250}
-          />
-        </>
-      ) : (
-        <LinearGradient
-          colors={post.gradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-      )}
+      {/* 背景: ぼかした同じ画像 + 黒で自然に埋め、作品は contain で切れず表示。 */}
+      <Image
+        source={{ uri }}
+        style={StyleSheet.absoluteFill}
+        contentFit="cover"
+        blurRadius={30}
+        transition={250}
+      />
+      <View style={[StyleSheet.absoluteFill, styles.dim]} />
+      <Image
+        source={{ uri }}
+        style={StyleSheet.absoluteFill}
+        contentFit="contain"
+        transition={250}
+      />
 
       {/* 可読性のための上下グラデーション */}
       <LinearGradient
@@ -399,6 +393,43 @@ function PostMedia({ post }: { post: TimelinePost }) {
 function Decoration({ post }: { post: TimelinePost }) {
   const Icon = GENRE_ICON[post.mediaType];
 
+  // 作品画像がある場合はメイン面を画像に任せ、装飾は最小限にする
+  // (右上の小さなジャンルバッジ + 映像/ダンスの再生アイコン + 詩の本文のみ)。
+  if (post.imageUrl) {
+    if (post.mediaType === "video" || post.mediaType === "dance") {
+      return (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <View style={styles.center}>
+            <View style={styles.playButton}>
+              <Play size={34} color={colors.text} fill={colors.text} />
+            </View>
+          </View>
+          <View style={styles.topRightBadge}>
+            <CategoryBadge
+              label={post.mediaType === "dance" ? "パフォーマンス" : "映像作品"}
+              accent={post.accent}
+              Icon={Icon}
+            />
+          </View>
+        </View>
+      );
+    }
+    if (post.mediaType === "poem") {
+      return (
+        <View style={styles.poemWrap} pointerEvents="none">
+          <Feather size={22} color={post.accent} style={styles.poemMark} />
+          <Text style={styles.poemBody}>{post.body ?? post.description}</Text>
+        </View>
+      );
+    }
+    return (
+      <View style={styles.topRightBadge} pointerEvents="none">
+        <CategoryBadge label={post.category} accent={post.accent} Icon={Icon} />
+      </View>
+    );
+  }
+
+  // 画像が無い場合のフォールバック演出(従来表現)。
   switch (post.mediaType) {
     case "music":
       return (

@@ -13,7 +13,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { Play } from "lucide-react-native";
 import { type Artwork } from "@/lib/mockData";
-import { genreMeta, usesPhoto } from "@/lib/genre";
+import { genreMeta } from "@/lib/genre";
 import { hapticBillboardTick } from "@/lib/haptics";
 import { colors } from "@/lib/theme";
 
@@ -234,7 +234,9 @@ function CardNode({
 }) {
   const art = slot.art;
   const meta = genreMeta(art.genre);
-  const photo = usesPhoto(art.genre);
+  // ジャンルに関わらず、作品画像があれば必ず画像をメイン面に出す。
+  // (アイコンだけのグラデーションカードを作らない。画像欠落時のみ保険でグラデ表示)
+  const photo = !!art.imageUrl;
   const Icon = meta.Icon;
   const left = centerX + slot.baseX - CELL / 2;
   const top_ = centerY + slot.baseY - CELL / 2;

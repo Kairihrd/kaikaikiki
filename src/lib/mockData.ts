@@ -415,19 +415,35 @@ function pickBillboard(pool: Artwork[], limit: number): Artwork[] {
   return picked.slice(0, limit);
 }
 
-// 実データが目標数に満たない場合、ビルボードを埋めるプレースホルダー作品を生成する。
+// 実データが目標数に満たない場合、ビルボードを埋める補完作品を生成する。
 // (Today's 100 を常に100枚にするための補完。後で実データが増えれば自然に置き換わる)
+// 「Untitled」のような未完成感を避けるため、詩的なタイトル/作家名を割り当て、
+// 必ず作品画像を持たせる(グラデーション + アイコンだけのカードは作らない)。
+const PH_TITLES = [
+  "余白の記憶", "遠い反射", "名もなき光", "静かな層", "気配の輪郭",
+  "夜のかけら", "白い余韻", "境界の呼吸", "沈黙の粒", "光の通り道",
+  "かすかな兆し", "透明な時間", "薄明の景色", "重なる静寂", "余白に咲く",
+  "ほどけた線", "遠雷", "微熱の色", "残像", "空白の手紙",
+];
+const PH_NAMES = [
+  "ren", "mio", "sora", "yua", "kai", "nao", "rin", "jun",
+  "aoi", "kou", "mei", "riku", "saki", "tao", "emi", "yuto",
+];
+
 function makePlaceholder(i: number): Artwork {
   const genre = GENRES[i % GENRES.length];
+  const title = PH_TITLES[i % PH_TITLES.length];
+  const name = PH_NAMES[i % PH_NAMES.length];
   return {
     id: `ph-${i}`,
-    title: `Untitled #${i + 1}`,
-    creatorName: `creator${i + 1}`,
-    creatorHandle: `@creator${i + 1}`,
-    imageUrl: img(`ph-${i}`, 400, 400, GRAY_GENRES.includes(genre)),
+    title,
+    creatorName: name,
+    creatorHandle: `@${name}_${i}`,
+    // 補完カードも必ず作品画像を持たせる(縦長で作品サムネらしく)。
+    imageUrl: img(`ph-${name}-${i}`, 600, 800, GRAY_GENRES.includes(genre)),
     genre,
     theme: CURRENT_THEME,
-    description: "今日のビルボードに並ぶ作品。",
+    description: `${genre}の視点から「${CURRENT_THEME}」を見つめた一枚。`,
     likes: 50 + ((i * 53) % 1500),
     comments: 1 + ((i * 7) % 60),
     isVideo: false,
@@ -636,6 +652,7 @@ const TIMELINE_POSTS: TimelinePost[] = [
     comments: 58,
     soundLabel: "アトリエの環境音 - トウマ",
     mediaType: "painting",
+    imageUrl: img("toma-paint-canvas", 1000, 1400),
     gradient: ["#1c1917", "#7c2d12", "#0c0a09"],
     accent: "#f59e0b",
   },
@@ -652,6 +669,7 @@ const TIMELINE_POSTS: TimelinePost[] = [
     comments: 132,
     soundLabel: "Synth Drift - カイ",
     mediaType: "digital",
+    imageUrl: img("kai-digital-sea", 1000, 1400),
     gradient: ["#3b0764", "#9333ea", "#06b6d4"],
     accent: "#22d3ee",
     supporting: true,
@@ -670,6 +688,7 @@ const TIMELINE_POSTS: TimelinePost[] = [
     comments: 64,
     soundLabel: "重力の手紙 (Full) - ソウ",
     mediaType: "music",
+    imageUrl: img("sou-sound-ambient", 1000, 1400, true),
     gradient: ["#0f172a", "#1e1b4b", "#312e81"],
     accent: "#22d3ee",
     supporting: true,
@@ -723,6 +742,7 @@ const TIMELINE_POSTS: TimelinePost[] = [
     comments: 41,
     soundLabel: "朗読 - コトハ",
     mediaType: "poem",
+    imageUrl: img("kotoha-words-paper", 1000, 1400, true),
     gradient: ["#05070a", "#0f172a", "#05070a"],
     accent: "#22d3ee",
   },
@@ -756,6 +776,7 @@ const TIMELINE_POSTS: TimelinePost[] = [
     comments: 49,
     soundLabel: "Studio Ambience - イツキ",
     mediaType: "product",
+    imageUrl: img("itsuki-product-minimal", 1000, 1400),
     gradient: ["#111827", "#374151", "#0b0f17"],
     accent: "#22d3ee",
   },
@@ -772,6 +793,7 @@ const TIMELINE_POSTS: TimelinePost[] = [
     comments: 60,
     soundLabel: "Spatial Drone - ノエル",
     mediaType: "installation",
+    imageUrl: img("noel-fog-space", 1000, 1400, true),
     gradient: ["#0b1417", "#0f766e", "#0b1417"],
     accent: "#2dd4bf",
     supporting: true,
@@ -789,6 +811,7 @@ const TIMELINE_POSTS: TimelinePost[] = [
     comments: 88,
     soundLabel: "Render Hum - タイガ",
     mediaType: "3d",
+    imageUrl: img("taiga-cg-particle", 1000, 1400),
     gradient: ["#0ea5e9", "#6366f1", "#a855f7"],
     accent: "#818cf8",
   },
@@ -841,6 +864,7 @@ const TIMELINE_POSTS: TimelinePost[] = [
     comments: 44,
     soundLabel: "海鳴りの記譜 - ナル",
     mediaType: "music",
+    imageUrl: img("naru-sea-notation", 1000, 1400, true),
     gradient: ["#082f49", "#0e7490", "#022c3a"],
     accent: "#67e8f9",
   },
@@ -857,6 +881,7 @@ const TIMELINE_POSTS: TimelinePost[] = [
     comments: 101,
     soundLabel: "Glitch Lullaby - ソラ",
     mediaType: "digital",
+    imageUrl: img("sora-digital-dream", 1000, 1400),
     gradient: ["#4c1d95", "#db2777", "#f59e0b"],
     accent: "#ec4899",
     supporting: true,
