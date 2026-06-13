@@ -71,6 +71,7 @@ export default function PostScreen() {
   const [genre, setGenre] = useState<string>(GENRES[0]);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [isVideoWork, setIsVideoWork] = useState(false);
+  const [videoUrl, setVideoUrl] = useState("");
 
   const pickImage = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -94,6 +95,8 @@ export default function PostScreen() {
       target: cfg.target,
       theme: themeName,
       isVideoWork,
+      // 動画作品のときだけ動画URLを保存(説明文とは別フィールド)。
+      videoUrl: isVideoWork ? videoUrl.trim() : undefined,
     });
     hapticSuccess();
     Alert.alert("投稿しました", `${cfg.note}\nマイページにも反映されます。`, [
@@ -102,6 +105,21 @@ export default function PostScreen() {
   };
 
   const handleSubmit = () => {
+    // 動画作品は動画URLが必須(http/https のみ許可)。
+    if (isVideoWork) {
+      const u = videoUrl.trim();
+      if (!u) {
+        Alert.alert("動画URLが必要です", "動画作品には動画URLを入力してください。");
+        return;
+      }
+      if (!/^https?:\/\//i.test(u)) {
+        Alert.alert(
+          "URLが正しくありません",
+          "http:// または https:// で始まるURLを入力してください。",
+        );
+        return;
+      }
+    }
     // today / theme は1枚のみ。投稿済みなら差し替え確認を出す。
     if (cfg.target !== "timeline" && alreadyPosted) {
       Alert.alert(
@@ -222,6 +240,27 @@ export default function PostScreen() {
             />
           </GlassCard>
 
+          {/* 動画URL(動画作品ONのときだけ表示・必須) */}
+          {isVideoWork ? (
+            <GlassCard style={styles.form}>
+              <Field label="動画URL">
+                <TextInput
+                  value={videoUrl}
+                  onChangeText={setVideoUrl}
+                  placeholder="YouTube / Vimeo / SoundCloud などのURL"
+                  placeholderTextColor={colors.textFaint}
+                  style={styles.input}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                />
+                <Text style={styles.fieldHint}>
+                  作品詳細の「動画を見る」ボタンから開きます（http:// または https://）。
+                </Text>
+              </Field>
+            </GlassCard>
+          ) : null}
+
           {/* ボタン */}
           <GradientButton label={cfg.cta} onPress={handleSubmit} />
         </ScrollView>
@@ -319,6 +358,7 @@ const styles = StyleSheet.create({
   uploadSub: { color: colors.textDim, fontSize: 12 },
   form: { padding: 18, gap: 16 },
   fieldLabel: { color: colors.textDim, fontSize: 12, fontWeight: "600", marginBottom: 6 },
+  fieldHint: { color: colors.textFaint, fontSize: 11, marginTop: 6 },
   input: {
     borderRadius: radius.md,
     borderColor: colors.border,
