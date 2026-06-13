@@ -25,6 +25,14 @@ import {
   type Artwork,
 } from "@/lib/mockData";
 import { genreMeta } from "@/lib/genre";
+import {
+  getSenseedStatus,
+  statusProgress,
+  STATUS_TAGLINE,
+  STATUS_UNIT,
+  type StatusKind,
+  type StatusLevel,
+} from "@/lib/status";
 import { useLanguage } from "@/context/LanguageContext";
 import { useProfile } from "@/context/ProfileContext";
 import { useAuth } from "@/context/AuthContext";
@@ -62,6 +70,8 @@ export default function ProfileScreen() {
   const pinCandidates: Artwork[] = [FEATURED_ARTWORK, ...myWorks];
   const [pinned, setPinned] = useState<Artwork>(FEATURED_ARTWORK);
   const [pinPickerOpen, setPinPickerOpen] = useState(false);
+  // Senseed Status(MVP・モック値)。投稿=表現、発掘ポイント=発掘。
+  const status = getSenseedStatus();
 
   return (
     <View style={styles.root}>
@@ -104,6 +114,21 @@ export default function ProfileScreen() {
           <View style={styles.stats}>
             <StatCard style={styles.statItem} value="56" label={t("profile.commentsStat")} />
             <StatCard style={styles.statItem} value="12" label={t("profile.collections")} />
+          </View>
+
+          {/* Senseed Status(行動で伸びる2つのステータス) */}
+          <View style={styles.statusSection}>
+            <Text style={styles.statusHeading}>Senseed Status</Text>
+            <StatusCard
+              kind="expression"
+              level={status.expressionLevel}
+              count={status.expressionCount}
+            />
+            <StatusCard
+              kind="discovery"
+              level={status.discoveryLevel}
+              count={status.discoveryCount}
+            />
           </View>
 
           {/* 固定作品(自分で設定する自信作) */}
@@ -257,9 +282,80 @@ function MenuRow({
   );
 }
 
+const STATUS_META: Record<StatusKind, { emoji: string; label: string }> = {
+  expression: { emoji: "🌱", label: "表現ステータス" },
+  discovery: { emoji: "🔍", label: "発掘ステータス" },
+};
+
+// Senseed Status の1カード(画像 + レベル + 進捗バー + 現在値/次の目標 + 一言)。
+function StatusCard({
+  kind,
+  level,
+  count,
+}: {
+  kind: StatusKind;
+  level: StatusLevel;
+  count: number;
+}) {
+  const prog = statusProgress(count, level);
+  const meta = STATUS_META[kind];
+  return (
+    <GlassCard style={styles.statusCard}>
+      <Image source={level.image} style={styles.statusImage} contentFit="cover" />
+      <View style={styles.statusBody}>
+        <Text style={styles.statusKind}>
+          {meta.emoji} {meta.label}
+        </Text>
+        <Text style={styles.statusLevel}>
+          Lv.{level.level} {level.name}
+        </Text>
+        <View style={styles.statusBarTrack}>
+          <View
+            style={[styles.statusBarFill, { width: `${Math.round(prog.ratio * 100)}%` }]}
+          />
+        </View>
+        <Text style={styles.statusProgressText}>
+          {prog.isMax
+            ? "最大レベル"
+            : `${STATUS_UNIT[kind]} ${prog.current} / 次のレベルまで ${prog.remaining}`}
+        </Text>
+        <Text style={styles.statusDesc} numberOfLines={2}>
+          「{STATUS_TAGLINE[kind]}」
+        </Text>
+      </View>
+    </GlassCard>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   safe: { flex: 1 },
+
+  // Senseed Status
+  statusSection: { gap: 10 },
+  statusHeading: { color: colors.text, fontSize: 16, fontWeight: "800", marginBottom: 2 },
+  statusCard: { flexDirection: "row", alignItems: "center", gap: 14, padding: 14 },
+  statusImage: {
+    width: 72,
+    height: 72,
+    borderRadius: 999,
+    backgroundColor: "#0a0a0a",
+    borderColor: "rgba(101,212,110,0.4)",
+    borderWidth: 1,
+  },
+  statusBody: { flex: 1, gap: 5 },
+  statusKind: { color: colors.text, fontSize: 13, fontWeight: "700" },
+  statusLevel: { color: "#86efac", fontSize: 15, fontWeight: "800" },
+  statusBarTrack: {
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    overflow: "hidden",
+    marginTop: 2,
+  },
+  statusBarFill: { height: "100%", borderRadius: 999, backgroundColor: "#4ade80" },
+  statusProgressText: { color: colors.textDim, fontSize: 12 },
+  statusDesc: { color: colors.textFaint, fontSize: 11, lineHeight: 16 },
   content: { paddingHorizontal: 16, paddingBottom: 130, gap: 18 },
   profile: { alignItems: "center", paddingTop: 6 },
   avatarRing: { borderRadius: 999, padding: 3 },
