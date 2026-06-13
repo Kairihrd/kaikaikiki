@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -6,23 +6,38 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { ProfileProvider } from "@/context/ProfileContext";
 import { PostsProvider } from "@/context/PostsContext";
+import { LikesProvider } from "@/context/LikesContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { colors } from "@/lib/theme";
 
 // 認証ゲート: 未ログインなら /login へ、ログイン済みで /login にいるなら / へ。
+// また、起動時(ログイン済み)は必ずビルボード(/)から始める。
 function RootNavigation() {
   const { user, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  // 起動後に一度だけビルボードへ寄せるためのフラグ。
+  const didLandOnBillboard = useRef(false);
 
   useEffect(() => {
     if (loading) return;
     const inAuth = segments[0] === "login";
-    if (!user && !inAuth) {
-      router.replace("/login");
-    } else if (user && inAuth) {
-      router.replace("/");
+    if (!user) {
+      if (!inAuth) router.replace("/login");
+      return;
+    }
+    // ログイン済み。
+    if (inAuth) {
+      router.replace("/"); // ログイン/新規登録成功後はビルボードへ。
+      return;
+    }
+    // 起動直後は、前回どこにいてもビルボードから始める(初回のみ)。
+    if (!didLandOnBillboard.current) {
+      didLandOnBillboard.current = true;
+      if (segments[0] !== undefined && segments[0] !== "index") {
+        router.replace("/");
+      }
     }
   }, [user, loading, segments, router]);
 
@@ -51,9 +66,11 @@ export default function RootLayout() {
           <LanguageProvider>
             <ProfileProvider>
               <PostsProvider>
-                <NotificationProvider>
-                  <RootNavigation />
-                </NotificationProvider>
+                <LikesProvider>
+                  <NotificationProvider>
+                    <RootNavigation />
+                  </NotificationProvider>
+                </LikesProvider>
               </PostsProvider>
             </ProfileProvider>
           </LanguageProvider>

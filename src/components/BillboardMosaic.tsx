@@ -292,7 +292,7 @@ function CardNode({
           </LinearGradient>
         )}
 
-        {photo && meta.visual === "video" ? (
+        {photo && (art.isVideo || meta.visual === "video") ? (
           <View style={styles.playWrap} pointerEvents="none">
             <View style={styles.playCircle}>
               <Play size={13} color={colors.text} fill={colors.text} />

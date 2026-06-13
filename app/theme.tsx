@@ -9,18 +9,38 @@ import BottomNav from "@/components/BottomNav";
 import BillboardMosaic from "@/components/BillboardMosaic";
 import StatCard from "@/components/StatCard";
 import Countdown from "@/components/Countdown";
-import GradientButton from "@/components/GradientButton";
-import { getThemeBillboardArtworks } from "@/lib/mockData";
+import {
+  CURRENT_THEME,
+  FEATURED_CREATOR,
+  getThemeBillboardArtworks,
+} from "@/lib/mockData";
 import { generateTheme, useCurrentTheme } from "@/lib/themeApi";
 import { useLanguage } from "@/context/LanguageContext";
+import { usePosts } from "@/context/PostsContext";
+import { useProfile } from "@/context/ProfileContext";
+import { userPostToArtwork } from "@/lib/userPost";
 import { colors, radius } from "@/lib/theme";
 
 // 2. テーマビルボード。ビルボード配下のサブ画面。
 // テーマ名/説明は backend の月間テーマ(API)に接続。未接続時は mock「境界」。
 export default function ThemeScreen() {
   const { t } = useLanguage();
+  const { posts } = usePosts();
+  const { profile } = useProfile();
   // 【Sensedルール】テーマ参加作品から毎日入れ替わるビルボード。
-  const artworks = getThemeBillboardArtworks();
+  const baseArtworks = getThemeBillboardArtworks();
+  // 自分のテーマ投稿を「自分の作品」として先頭に反映する。
+  const author = {
+    name: profile.name ?? "あなた",
+    handle: FEATURED_CREATOR.handle,
+    avatarUrl: profile.avatarUri ?? FEATURED_CREATOR.avatarUrl,
+  };
+  const myThemeArtwork = posts
+    .filter((p) => p.target === "theme" && p.theme === CURRENT_THEME)
+    .map((p) => userPostToArtwork(p, author))[0];
+  const artworks = myThemeArtwork
+    ? [myThemeArtwork, ...baseArtworks]
+    : baseArtworks;
   const { theme, setTheme } = useCurrentTheme();
   // デモのテーマ名「境界」は翻訳キーに対応(API由来の他の値はそのまま表示)。
   const displayTheme = theme.title === "境界" ? t("common.boundary") : theme.title;
@@ -97,31 +117,29 @@ export default function ThemeScreen() {
             />
           </View>
 
-          <View style={styles.center}>
-            <GradientButton
-              label="テーマ詳細"
-              variant="ring"
-              icon={<Star size={16} color={colors.text} />}
-              onPress={() =>
-                Alert.alert(`テーマ：${theme.title}`, theme.description)
-              }
-            />
-            {/* 開発確認用ボタン(本番は月初cron/管理者専用の想定) */}
-            <Pressable
-              style={styles.devButton}
-              onPress={onGenerate}
-              disabled={generating}
-            >
-              <Sparkles size={13} color={colors.textDim} />
-              <Text style={styles.devButtonText}>
-                {generating ? "生成中…" : "AIで今月のテーマを生成"}
-              </Text>
-            </Pressable>
-          </View>
+          {/* 開発確認用: その月のテーマをAI生成(本番は月初cron/管理者専用の想定)。
+              本番ビルド(TestFlight)では非表示。 */}
+          {__DEV__ ? (
+            <View style={styles.center}>
+              <Pressable
+                style={styles.devButton}
+                onPress={onGenerate}
+                disabled={generating}
+              >
+                <Sparkles size={13} color={colors.textDim} />
+                <Text style={styles.devButtonText}>
+                  {generating ? "生成中…" : "AIで今月のテーマを生成"}
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
 
           {/* ビルボード(ハニカム2Dパン。ScrollView内なので高さを固定する) */}
           <View style={styles.themeCanvas}>
-            <BillboardMosaic artworks={artworks} highlightId="1" />
+            <BillboardMosaic
+              artworks={artworks}
+              highlightId={myThemeArtwork?.id ?? "1"}
+            />
           </View>
         </ScrollView>
       </SafeAreaView>

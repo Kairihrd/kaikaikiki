@@ -69,6 +69,9 @@ const img = (seed: string, w = 600, h = 800, grayscale = false) =>
 const avatar = (seed: string) =>
   `https://picsum.photos/seed/senseed-avatar-${seed}/200/200`;
 
+// 画像が無いユーザー投稿でも「作品カード」に見せるためのデフォルトアート画像。
+export const DEFAULT_ARTWORK_IMAGE = img("user-default-art", 1000, 1300, true);
+
 // 月間テーマ
 export const CURRENT_THEME = "境界";
 

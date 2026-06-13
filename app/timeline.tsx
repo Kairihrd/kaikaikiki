@@ -48,16 +48,11 @@ import {
 import { usePosts } from "@/context/PostsContext";
 import { useProfile } from "@/context/ProfileContext";
 import { useNotifications } from "@/context/NotificationContext";
+import { useLikes } from "@/context/LikesContext";
+import { userPostToTimelinePost } from "@/lib/userPost";
 import { hapticLight } from "@/lib/haptics";
 import { formatCount } from "@/lib/format";
 import { colors, gradient } from "@/lib/theme";
-
-// ユーザー投稿カードの背景グラデーション(写真が無い投稿用)。
-const USER_GRADIENT: readonly [string, string, string] = [
-  "#0b0d10",
-  "#1c2026",
-  "#05070a",
-];
 
 // 画像が無い投稿でも「作品カード」に見せるためのデフォルトアート画像。
 // (アイコンだけのカードにせず、必ず画像をメイン面に表示する)
@@ -88,34 +83,25 @@ const GENRE_ICON: Record<TimelineMedia, React.ComponentType<{ size?: number; col
 // タブで「おすすめ(全ジャンル)」「サポート中(応援クリエイター)」を切り替える。
 export default function TimelineScreen() {
   const [activeTab, setActiveTab] = useState<Tab>("おすすめ");
-  const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const { height } = useWindowDimensions();
   const listRef = useRef<FlatList<TimelinePost>>(null);
   const { posts: userPosts } = usePosts();
   const { profile } = useProfile();
   const { addLikeNotification, unreadCount, dmUnread } = useNotifications();
+  const { isLiked, toggleLike } = useLikes();
 
-  // ユーザー自身の投稿を TimelinePost に変換(「おすすめ」の先頭に表示)。
+  // ユーザー自身の「タイムライン投稿」だけを先頭に表示(ビルボード/テーマ投稿は除外)。
   const userTimeline = useMemo<TimelinePost[]>(
     () =>
-      userPosts.map((p) => ({
-        id: p.id,
-        category: p.genre,
-        title: p.title,
-        creatorName: profile.name ?? "あなた",
-        username: FEATURED_CREATOR.handle,
-        avatarUrl: profile.avatarUri ?? FEATURED_CREATOR.avatarUrl,
-        description: p.caption,
-        body: p.imageUri ? undefined : p.caption,
-        tags: [],
-        likes: 0,
-        comments: 0,
-        soundLabel: "オリジナル投稿",
-        mediaType: p.imageUri ? "image" : "poem",
-        imageUrl: p.imageUri,
-        gradient: USER_GRADIENT,
-        accent: colors.cyan,
-      })),
+      userPosts
+        .filter((p) => p.target === "timeline")
+        .map((p) =>
+          userPostToTimelinePost(p, {
+            name: profile.name ?? "あなた",
+            handle: FEATURED_CREATOR.handle,
+            avatarUrl: profile.avatarUri ?? FEATURED_CREATOR.avatarUrl,
+          }),
+        ),
     [userPosts, profile],
   );
 
@@ -133,21 +119,15 @@ export default function TimelineScreen() {
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
   };
 
-  const toggleLike = useCallback(
+  const onToggleLike = useCallback(
     (id: string) => {
-      setLikedIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(id)) {
-          next.delete(id);
-        } else {
-          next.add(id);
-          hapticLight(); // いいね時の軽い振動
-          addLikeNotification(); // 「いいねされた」疑似通知を追加
-        }
-        return next;
-      });
+      const nowLiked = toggleLike(id); // AsyncStorage に永続化
+      if (nowLiked) {
+        hapticLight(); // いいね時の軽い振動
+        addLikeNotification(); // 「いいねされた」疑似通知を追加
+      }
     },
-    [addLikeNotification],
+    [toggleLike, addLikeNotification],
   );
 
   // 各アイテムは画面高さぴったり。これで1画面1投稿にスナップする。
@@ -165,11 +145,11 @@ export default function TimelineScreen() {
       <PostCard
         post={item}
         height={height}
-        liked={likedIds.has(item.id)}
-        onLike={() => toggleLike(item.id)}
+        liked={isLiked(item.id)}
+        onLike={() => onToggleLike(item.id)}
       />
     ),
-    [height, likedIds, toggleLike],
+    [height, isLiked, onToggleLike],
   );
 
   return (
@@ -180,6 +160,7 @@ export default function TimelineScreen() {
       <FlatList
         ref={listRef}
         data={posts}
+        extraData={isLiked}
         keyExtractor={(p) => p.id}
         renderItem={renderItem}
         getItemLayout={getItemLayout}
