@@ -6,9 +6,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Check,
-  Heart,
   LogOut,
-  MessageCircle,
+  Play,
+  Plus,
   Settings,
   Users,
   X,
@@ -18,13 +18,7 @@ import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import GlassCard from "@/components/GlassCard";
 import StatCard from "@/components/StatCard";
-import {
-  FEATURED_ARTWORK,
-  FEATURED_CREATOR,
-  getTodaysArtworks,
-  type Artwork,
-} from "@/lib/mockData";
-import { genreMeta } from "@/lib/genre";
+import { DEFAULT_ARTWORK_IMAGE, FEATURED_CREATOR } from "@/lib/mockData";
 import {
   getSenseedStatus,
   statusProgress,
@@ -34,18 +28,12 @@ import {
   type StatusLevel,
 } from "@/lib/status";
 import { useLanguage } from "@/context/LanguageContext";
-import { usePosts } from "@/context/PostsContext";
+import { usePosts, type UserPost } from "@/context/PostsContext";
 import { useProfile } from "@/context/ProfileContext";
 import { useAuth } from "@/context/AuthContext";
+import { TARGET_LABEL } from "@/lib/userPost";
 import { formatCount } from "@/lib/format";
 import { colors, gradient, radius } from "@/lib/theme";
-
-const PROFILE_TAB_KEYS = [
-  "profile.tabWorks",
-  "profile.tabLikes",
-  "profile.tabComments",
-  "profile.tabDrafts",
-];
 
 // 5. マイページ
 export default function ProfileScreen() {
@@ -65,16 +53,13 @@ export default function ProfileScreen() {
   const avatarSource = profile.avatarUri
     ? { uri: profile.avatarUri }
     : { uri: me.avatarUrl };
-  const myWorks = getTodaysArtworks().slice(1, 13);
-  // 「ビルボードに表示される自信作」は自分で設定する(ローカルstateで差し替え)。
-  // 候補は featured + 自分の作品。DB保存はしない。
-  const pinCandidates: Artwork[] = [FEATURED_ARTWORK, ...myWorks];
-  const [pinned, setPinned] = useState<Artwork>(FEATURED_ARTWORK);
+  // マイページには「自分が投稿した作品」だけを表示する。
+  const { posts, featuredPost, setFeatured } = usePosts();
   const [pinPickerOpen, setPinPickerOpen] = useState(false);
   // Senseed Status。
   // 表現=実データ(投稿数: PostsContext)。発掘=モック値(実集計ストアが未実装のため)。
-  const { posts } = usePosts();
   const status = getSenseedStatus(posts.length);
+  const thumb = (p: UserPost) => ({ uri: p.imageUri ?? DEFAULT_ARTWORK_IMAGE });
 
   return (
     <View style={styles.root}>
@@ -134,69 +119,80 @@ export default function ProfileScreen() {
             />
           </View>
 
-          {/* 固定作品(自分で設定する自信作) */}
+          {/* 自信作(ビルボード掲載作品)。自分の投稿から1つ設定する。 */}
           <View>
             <Text style={styles.sectionTitle}>{t("profile.featuredTitle")}</Text>
             <Text style={styles.sectionDesc}>
-              {t("profile.featuredDesc")}
+              マイページのビルボードに表示する自信作です(1枚・差し替え)。
             </Text>
-            <GlassCard style={styles.pinned}>
-              <Image source={{ uri: pinned.imageUrl }} style={styles.pinnedImage} contentFit="cover" />
-              <View style={styles.pinnedBody}>
-                <Text style={styles.pinnedTitle}>{pinned.title}</Text>
-                <Text style={styles.pinnedDesc}>{pinned.description}</Text>
-                <View style={styles.pinnedStats}>
-                  <View style={styles.pinnedStat}>
-                    <Heart size={16} color={colors.textDim} />
-                    <Text style={styles.pinnedStatText}>{formatCount(pinned.likes)}</Text>
+            {featuredPost ? (
+              <GlassCard style={styles.pinned}>
+                <Image source={thumb(featuredPost)} style={styles.pinnedImage} contentFit="cover" />
+                {featuredPost.isVideoWork ? (
+                  <View style={styles.pinnedPlay} pointerEvents="none">
+                    <Play size={22} color={colors.text} fill={colors.text} />
                   </View>
-                  <View style={styles.pinnedStat}>
-                    <MessageCircle size={16} color={colors.textDim} />
-                    <Text style={styles.pinnedStatText}>{pinned.comments}</Text>
+                ) : null}
+                <View style={styles.pinnedBody}>
+                  <View style={styles.targetBadgeInline}>
+                    <Text style={styles.targetBadgeText}>
+                      {TARGET_LABEL[featuredPost.target]}
+                    </Text>
                   </View>
+                  <Text style={styles.pinnedTitle}>{featuredPost.title}</Text>
+                  {featuredPost.caption ? (
+                    <Text style={styles.pinnedDesc}>{featuredPost.caption}</Text>
+                  ) : null}
+                  <Pressable
+                    style={styles.pinButton}
+                    onPress={() => setPinPickerOpen(true)}
+                  >
+                    <Text style={styles.pinButtonText}>{t("profile.setFeatured")}</Text>
+                  </Pressable>
                 </View>
-                <Pressable
-                  style={styles.pinButton}
-                  onPress={() => setPinPickerOpen(true)}
-                >
-                  <Text style={styles.pinButtonText}>{t("profile.setFeatured")}</Text>
-                </Pressable>
-              </View>
-            </GlassCard>
-          </View>
-
-          {/* タブ */}
-          <View style={styles.tabs}>
-            {PROFILE_TAB_KEYS.map((tabKey, i) => (
-              <Pressable
-                key={tabKey}
-                style={[styles.tab, i === 0 ? styles.tabActive : styles.tabInactive]}
-              >
-                <Text style={[styles.tabText, i === 0 && styles.tabTextActive]}>
-                  {t(tabKey)}
+              </GlassCard>
+            ) : (
+              <GlassCard style={styles.emptyCard}>
+                <Text style={styles.emptyText}>
+                  まだ投稿がありません。作品を投稿すると、ここに自信作を設定できます。
                 </Text>
-              </Pressable>
-            ))}
+              </GlassCard>
+            )}
           </View>
 
-          {/* 自分の作品グリッド(ジャンルバッジ付き) */}
-          <View style={styles.grid}>
-            {myWorks.map((art) => {
-              const meta = genreMeta(art.genre);
-              const GenreIcon = meta.Icon;
-              return (
-                <Pressable
-                  key={art.id}
-                  style={styles.gridItem}
-                  onPress={() => router.push(`/artwork/${art.id}`)}
-                >
-                  <Image source={{ uri: art.imageUrl }} style={styles.gridImage} contentFit="cover" />
-                  <View style={styles.gridBadge}>
-                    <GenreIcon size={11} color={meta.accent} />
-                  </View>
-                </Pressable>
-              );
-            })}
+          {/* 自分の投稿作品(投稿先ラベル付き) */}
+          <View>
+            <Text style={styles.sectionTitle}>投稿した作品</Text>
+            {posts.length === 0 ? (
+              <GlassCard style={styles.emptyCard}>
+                <Plus size={24} color={colors.textDim} />
+                <Text style={styles.emptyText}>
+                  まだ投稿がありません。ビルボード・テーマ・タイムラインから投稿できます。
+                </Text>
+              </GlassCard>
+            ) : (
+              <View style={styles.grid}>
+                {posts.map((p) => (
+                  <Pressable
+                    key={p.id}
+                    style={styles.gridItem}
+                    onPress={() => router.push(`/artwork/${p.id}`)}
+                  >
+                    <Image source={thumb(p)} style={styles.gridImage} contentFit="cover" />
+                    <View style={styles.targetBadge}>
+                      <Text style={styles.targetBadgeText}>
+                        {TARGET_LABEL[p.target]}
+                      </Text>
+                    </View>
+                    {p.isVideoWork ? (
+                      <View style={styles.gridPlay} pointerEvents="none">
+                        <Play size={14} color={colors.text} fill={colors.text} />
+                      </View>
+                    ) : null}
+                  </Pressable>
+                ))}
+              </View>
+            )}
           </View>
 
           {/* 下部メニュー */}
@@ -230,34 +226,41 @@ export default function ProfileScreen() {
               </Pressable>
             </View>
             <Text style={styles.sheetSub}>
-              {t("profile.featuredDesc")}
+              自分が投稿した作品から、ビルボードに出す自信作を選びます。
             </Text>
 
             <ScrollView style={styles.sheetList} showsVerticalScrollIndicator={false}>
-              {pinCandidates.map((art) => {
-                const active = art.id === pinned.id;
-                return (
-                  <Pressable
-                    key={art.id}
-                    style={[styles.pickRow, active && styles.pickRowActive]}
-                    onPress={() => {
-                      setPinned(art);
-                      setPinPickerOpen(false);
-                    }}
-                  >
-                    <Image source={{ uri: art.imageUrl }} style={styles.pickThumb} contentFit="cover" />
-                    <View style={styles.pickInfo}>
-                      <Text style={styles.pickTitle} numberOfLines={1}>
-                        {art.title}
-                      </Text>
-                      <Text style={styles.pickMeta} numberOfLines={1}>
-                        {art.genre}・♥ {formatCount(art.likes)}
-                      </Text>
-                    </View>
-                    {active ? <Check size={18} color={colors.cyan} /> : null}
-                  </Pressable>
-                );
-              })}
+              {posts.length === 0 ? (
+                <Text style={styles.emptyText}>
+                  まだ投稿がありません。
+                </Text>
+              ) : (
+                posts.map((p) => {
+                  const active = p.id === featuredPost?.id;
+                  return (
+                    <Pressable
+                      key={p.id}
+                      style={[styles.pickRow, active && styles.pickRowActive]}
+                      onPress={() => {
+                        setFeatured(p.id);
+                        setPinPickerOpen(false);
+                      }}
+                    >
+                      <Image source={thumb(p)} style={styles.pickThumb} contentFit="cover" />
+                      <View style={styles.pickInfo}>
+                        <Text style={styles.pickTitle} numberOfLines={1}>
+                          {p.title}
+                        </Text>
+                        <Text style={styles.pickMeta} numberOfLines={1}>
+                          {p.genre}・{TARGET_LABEL[p.target]}
+                          {p.isVideoWork ? "・動画" : ""}
+                        </Text>
+                      </View>
+                      {active ? <Check size={18} color={colors.cyan} /> : null}
+                    </Pressable>
+                  );
+                })
+              )}
             </ScrollView>
           </Pressable>
         </Pressable>
@@ -388,9 +391,19 @@ const styles = StyleSheet.create({
   pinnedBody: { padding: 18 },
   pinnedTitle: { color: colors.text, fontSize: 18, fontWeight: "800" },
   pinnedDesc: { color: colors.textDim, fontSize: 13, marginTop: 8 },
-  pinnedStats: { flexDirection: "row", gap: 16, marginTop: 14 },
-  pinnedStat: { flexDirection: "row", alignItems: "center", gap: 6 },
-  pinnedStatText: { color: colors.textDim, fontSize: 14 },
+  pinnedPlay: {
+    position: "absolute",
+    top: 78,
+    alignSelf: "center",
+    width: 48,
+    height: 48,
+    borderRadius: 999,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    borderColor: "rgba(255,255,255,0.7)",
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   pinButton: {
     marginTop: 14,
     borderRadius: 999,
@@ -401,12 +414,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   pinButtonText: { color: colors.text, fontSize: 14, fontWeight: "600" },
-  tabs: { flexDirection: "row", gap: 8 },
-  tab: { borderRadius: 999, paddingHorizontal: 16, paddingVertical: 7 },
-  tabActive: { backgroundColor: colors.text },
-  tabInactive: { backgroundColor: colors.glass },
-  tabText: { color: colors.textDim, fontSize: 13, fontWeight: "600" },
-  tabTextActive: { color: colors.bg },
+  emptyCard: { padding: 22, alignItems: "center", gap: 10 },
+  emptyText: {
+    color: colors.textDim,
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 20,
+  },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   gridItem: {
     width: "31.5%",
@@ -415,12 +429,33 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   gridImage: { width: "100%", height: "100%" },
-  gridBadge: {
+  // 投稿先ラベル(タイムライン / 今日の100 / テーマ)
+  targetBadge: {
     position: "absolute",
     top: 6,
-    right: 6,
-    width: 22,
-    height: 22,
+    left: 6,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  targetBadgeInline: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(34,211,238,0.18)",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    marginBottom: 8,
+  },
+  targetBadgeText: { color: colors.text, fontSize: 10, fontWeight: "700" },
+  gridPlay: {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    width: 30,
+    height: 30,
+    marginTop: -15,
+    marginLeft: -15,
     borderRadius: 999,
     backgroundColor: "rgba(0,0,0,0.5)",
     alignItems: "center",

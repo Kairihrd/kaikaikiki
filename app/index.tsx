@@ -8,12 +8,15 @@ import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import BillboardMosaic from "@/components/BillboardMosaic";
 import {
+  FEATURED_CREATOR,
   GENRES,
   getTodaysBillboardArtworks,
   type Genre,
 } from "@/lib/mockData";
-import { useCurrentTheme } from "@/lib/themeApi";
 import { useLanguage } from "@/context/LanguageContext";
+import { usePosts } from "@/context/PostsContext";
+import { useProfile } from "@/context/ProfileContext";
+import { userPostToArtwork } from "@/lib/userPost";
 import { colors, radius } from "@/lib/theme";
 
 // 1. 今日のビルボード(Apple Watch ホーム風のハニカム 2Dパン キャンバス)
@@ -21,15 +24,34 @@ export default function HomeScreen() {
   const { t } = useLanguage();
   const [filterOpen, setFilterOpen] = useState(false);
   const [genre, setGenre] = useState<Genre | null>(null);
-  const { theme } = useCurrentTheme();
+  const { posts } = usePosts();
+  const { profile } = useProfile();
+
+  // 自分のビルボード投稿(今日の100)を「自分の作品」として先頭に反映する。
+  const author = {
+    name: profile.name ?? "あなた",
+    handle: FEATURED_CREATOR.handle,
+    avatarUrl: profile.avatarUri ?? FEATURED_CREATOR.avatarUrl,
+  };
+  const myTodayArtwork = posts
+    .filter((p) => p.target === "today")
+    .map((p) => userPostToArtwork(p, author))[0];
 
   // 【Sensedルール】毎日、表示回数の少ない人を優先して入れ替わるビルボード。
-  const all = getTodaysBillboardArtworks();
+  const base = getTodaysBillboardArtworks();
+  const all = myTodayArtwork ? [myTodayArtwork, ...base] : base;
   const artworks = genre ? all.filter((a) => a.genre === genre) : all;
-  // 注目作品(id:1)があれば中央に、無ければ先頭を中央にする。
-  const highlightId = artworks.some((a) => a.id === "1")
-    ? "1"
-    : artworks[0]?.id;
+  // 自分の投稿があれば中央に、無ければ注目作品(id:1)、それも無ければ先頭。
+  const highlightId =
+    myTodayArtwork && artworks.some((a) => a.id === myTodayArtwork.id)
+      ? myTodayArtwork.id
+      : artworks.some((a) => a.id === "1")
+        ? "1"
+        : artworks[0]?.id;
+
+  // 今日の日付(毎日変わるビルボードであることを示す)。
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
 
   return (
     <View style={styles.root}>
@@ -42,14 +64,14 @@ export default function HomeScreen() {
         {/* コンパクトな情報バー(テーマ / フィルター) */}
         <View style={styles.topBar}>
           <View>
-            <Text style={styles.date}>2025.05.24</Text>
+            <Text style={styles.date}>{dateStr}</Text>
             <Text style={styles.todays}>{t("common.todays100")}</Text>
           </View>
           <View style={styles.topActions}>
             <Pressable style={styles.chip} onPress={() => router.push("/theme")}>
               <Sparkles size={14} color={colors.cyan} />
               <Text style={styles.chipText} numberOfLines={1}>
-                {theme.title === "境界" ? t("common.boundary") : theme.title}
+                {t("common.theme")}
               </Text>
             </Pressable>
             <Pressable style={styles.chip} onPress={() => setFilterOpen(true)}>

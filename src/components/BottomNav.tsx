@@ -13,8 +13,6 @@ import {
   type LucideProps,
 } from "lucide-react-native";
 import { useLanguage } from "@/context/LanguageContext";
-import { usePosts } from "@/context/PostsContext";
-import { CURRENT_THEME } from "@/lib/mockData";
 import { colors, gradient } from "@/lib/theme";
 
 interface NavItem {
@@ -40,7 +38,6 @@ export default function BottomNav() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const { t } = useLanguage();
-  const { hasPostedToTheme } = usePosts();
 
   // テーマ(/theme)はビルボード配下なのでビルボードを、サポーター中(/supporting)は
   // マイページ配下なのでマイページを、それぞれアクティブ扱いにする。
@@ -51,26 +48,26 @@ export default function BottomNav() {
     return pathname.startsWith(href);
   };
 
-  // 中央投稿ボタンの出し分け(投稿できるのはタイムラインとテーマのみ):
-  //  - /timeline: 通常の + で投稿可 → /post
-  //  - /theme: ペンUI。未投稿なら有効(→ /post?mode=theme)、投稿済みならグレーアウト
-  //  - それ以外(/, /matching, /profile, /settings, /notifications, /messages,
-  //    /supporting など): すべてグレーアウトして投稿不可
+  // 中央投稿ボタンは「今いる画面の投稿先」に投稿する(投稿先を明確化):
+  //  - /timeline : 通常のタイムライン投稿 → /post?mode=timeline
+  //  - /         : 今日の100/ビルボード掲載 → /post?mode=billboard
+  //  - /theme    : テーマ投稿(Xのような投稿ボタン) → /post?mode=theme
+  //  - それ以外(/matching, /profile, /settings など): 投稿不可(グレーアウト)
   const onTheme = pathname.startsWith("/theme");
   const onTimeline = pathname.startsWith("/timeline");
-  const themeDone = onTheme && hasPostedToTheme(CURRENT_THEME);
-  const centerMode: "theme" | "themeDone" | "post" | "disabled" = onTheme
-    ? themeDone
-      ? "themeDone"
-      : "theme"
-    : onTimeline
-      ? "post"
-      : "disabled";
-  const centerDisabled = centerMode === "disabled" || centerMode === "themeDone";
+  const onBillboard = pathname === "/";
+  const postMode = onTimeline
+    ? "timeline"
+    : onBillboard
+      ? "billboard"
+      : onTheme
+        ? "theme"
+        : null;
+  const centerDisabled = postMode === null;
   const CenterIcon = onTheme ? PenLine : Plus;
   const onCenter = () => {
-    if (centerDisabled) return;
-    router.push(centerMode === "theme" ? "/post?mode=theme" : "/post");
+    if (!postMode) return;
+    router.push(`/post?mode=${postMode}`);
   };
 
   return (

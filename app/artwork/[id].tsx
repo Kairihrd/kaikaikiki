@@ -16,9 +16,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Heart,
   MessageCircle,
+  Play,
   Send,
   Share2,
-  Sparkles,
 } from "lucide-react-native";
 import ScreenGlow from "@/components/ScreenGlow";
 import AppHeader from "@/components/AppHeader";
@@ -27,22 +27,40 @@ import GlassCard from "@/components/GlassCard";
 import GradientButton from "@/components/GradientButton";
 import Tag from "@/components/Tag";
 import {
+  FEATURED_CREATOR,
   getArtworkById,
   getCommentsForArtwork,
   getCreatorByHandle,
   type Comment,
 } from "@/lib/mockData";
+import { usePosts } from "@/context/PostsContext";
+import { useProfile } from "@/context/ProfileContext";
+import { useLikes } from "@/context/LikesContext";
+import { userPostToArtwork } from "@/lib/userPost";
 import { formatCount } from "@/lib/format";
 import { colors, radius } from "@/lib/theme";
 
 // 4. 作品詳細
 export default function ArtworkDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const artwork = getArtworkById(id ?? "1") ?? getArtworkById("1")!;
+  const { posts } = usePosts();
+  const { profile } = useProfile();
+  // モック作品が無ければ、自分の投稿(UserPost)を作品として表示する。
+  const userPost = posts.find((p) => p.id === id);
+  const artwork =
+    getArtworkById(id ?? "1") ??
+    (userPost
+      ? userPostToArtwork(userPost, {
+          name: profile.name ?? "あなた",
+          handle: FEATURED_CREATOR.handle,
+          avatarUrl: profile.avatarUri ?? FEATURED_CREATOR.avatarUrl,
+        })
+      : getArtworkById("1")!);
   const creator = getCreatorByHandle(artwork.creatorHandle);
 
   const scrollRef = useRef<ScrollView>(null);
-  const [liked, setLiked] = useState(false);
+  const { isLiked, toggleLike } = useLikes();
+  const liked = isLiked(artwork.id);
   const [supporting, setSupporting] = useState(false);
   // 既定(モック)コメント + ユーザー追加コメント(作品IDごとに AsyncStorage 保存)。
   const seedComments = useMemo(
@@ -79,12 +97,6 @@ export default function ArtworkDetailScreen() {
     }
   };
 
-  const onAskAi = () =>
-    Alert.alert(
-      "AIによる作品解説",
-      "この作品は、静けさ・光・空間性が特徴です。被写体の余白と境界の表現から、見る人の想像に委ねる構成になっています。",
-    );
-
   const onSendComment = () => {
     const body = draft.trim();
     if (!body) return;
@@ -105,8 +117,15 @@ export default function ArtworkDetailScreen() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          {/* 作品画像 */}
-          <Image source={{ uri: artwork.imageUrl }} style={styles.hero} contentFit="cover" transition={300} />
+          {/* 作品画像(動画作品はサムネ + 再生ボタン) */}
+          <View>
+            <Image source={{ uri: artwork.imageUrl }} style={styles.hero} contentFit="cover" transition={300} />
+            {artwork.isVideo ? (
+              <View style={styles.heroPlay} pointerEvents="none">
+                <Play size={28} color={colors.text} fill={colors.text} />
+              </View>
+            ) : null}
+          </View>
 
           {/* 作者プロフィールカード */}
           <GlassCard style={styles.creatorCard}>
@@ -150,7 +169,7 @@ export default function ArtworkDetailScreen() {
                   />
                 }
                 label={formatCount(likeCount)}
-                onPress={() => setLiked((v) => !v)}
+                onPress={() => toggleLike(artwork.id)}
               />
               <Stat
                 icon={<MessageCircle size={20} color={colors.textDim} />}
@@ -181,19 +200,7 @@ export default function ArtworkDetailScreen() {
           <GlassCard style={styles.infoCard}>
             <Row label="ジャンル" value={artwork.genre} />
             <Row label="テーマ" value={artwork.theme} />
-            <Text style={styles.infoLabel}>AIが見出したキーワード</Text>
-            <View style={styles.tagRow}>
-              {["静けさ", "未来", "孤独", "光", "空間"].map((k) => (
-                <Tag key={k} label={k} />
-              ))}
-            </View>
           </GlassCard>
-
-          {/* AI質問ボタン */}
-          <Pressable style={styles.aiButton} onPress={onAskAi}>
-            <Sparkles size={16} color={colors.cyan} />
-            <Text style={styles.aiText}>AIに作品について質問する</Text>
-          </Pressable>
 
           {/* コメント欄 */}
           <View>
@@ -270,6 +277,21 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderWidth: 1,
   },
+  heroPlay: {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    width: 64,
+    height: 64,
+    marginTop: -32,
+    marginLeft: -32,
+    borderRadius: 999,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    borderColor: "rgba(255,255,255,0.7)",
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   creatorCard: { padding: 18, gap: 14 },
   creatorRow: { flexDirection: "row", alignItems: "center", gap: 14 },
   avatar: {
@@ -313,19 +335,6 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: "row", justifyContent: "space-between" },
   infoRowLabel: { color: colors.textFaint, fontSize: 14 },
   infoRowValue: { color: colors.text, fontSize: 14, fontWeight: "600" },
-  infoLabel: { color: colors.textFaint, fontSize: 14, marginTop: 2 },
-  aiButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    borderRadius: 999,
-    borderColor: colors.borderStrong,
-    borderWidth: 1,
-    backgroundColor: colors.glass,
-    paddingVertical: 14,
-  },
-  aiText: { color: colors.text, fontSize: 14, fontWeight: "700" },
   commentHeading: { color: colors.textDim, fontSize: 14, fontWeight: "700", marginBottom: 12 },
   commentList: { gap: 10 },
   commentCard: { padding: 14 },
