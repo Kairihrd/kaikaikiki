@@ -106,8 +106,8 @@ const styles = StyleSheet.create({
   },
   // 横長 SENSEED ロゴ画像(透過PNG)。黒背景に馴染む。右側アイコンに被らないサイズ。
   logoImg: {
-    width: 72,
-    height: 26,
+    width: 100,
+    height: 36,
   },
   subtitle: {
     color: colors.textFaint,

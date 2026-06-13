@@ -13,14 +13,18 @@ import GradientButton from "@/components/GradientButton";
 import FloatingPostButton from "@/components/FloatingPostButton";
 import { getThemeBillboardArtworks } from "@/lib/mockData";
 import { generateTheme, useCurrentTheme } from "@/lib/themeApi";
+import { useLanguage } from "@/context/LanguageContext";
 import { colors, radius } from "@/lib/theme";
 
 // 2. テーマビルボード。ビルボード配下のサブ画面。
 // テーマ名/説明は backend の月間テーマ(API)に接続。未接続時は mock「境界」。
 export default function ThemeScreen() {
+  const { t } = useLanguage();
   // 【Sensedルール】テーマ参加作品から毎日入れ替わるビルボード。
   const artworks = getThemeBillboardArtworks();
   const { theme, setTheme } = useCurrentTheme();
+  // デモのテーマ名「境界」は翻訳キーに対応(API由来の他の値はそのまま表示)。
+  const displayTheme = theme.title === "境界" ? t("common.boundary") : theme.title;
   const [generating, setGenerating] = useState(false);
 
   // 開発確認用: その月のテーマを AI 生成する(本番は月初cron/管理者専用の想定)。
@@ -50,7 +54,7 @@ export default function ThemeScreen() {
     <View style={styles.root}>
       <ScreenGlow />
       <SafeAreaView edges={["top"]} style={styles.safe}>
-        <AppHeader subtitle="テーマビルボード" showBack />
+        <AppHeader subtitle={t("header.themeBillboard")} showBack />
 
         <ScrollView
           contentContainerStyle={styles.content}
@@ -66,7 +70,7 @@ export default function ThemeScreen() {
             <View style={styles.starWrap}>
               <Star size={26} color={colors.cyan} />
             </View>
-            <Text style={styles.title}>テーマ：{theme.title}</Text>
+            <Text style={styles.title}>{t("theme.themePrefix")}：{displayTheme}</Text>
             <Text style={styles.desc}>{theme.description}</Text>
             <View style={styles.remain}>
               <Text style={styles.remainDim}>残り</Text>
@@ -82,14 +86,14 @@ export default function ThemeScreen() {
           <View style={styles.stats}>
             <StatCard
               style={styles.statItem}
-              value="824作品"
-              label="このテーマの参加作品"
+              value="824"
+              label={t("theme.participatingLabel")}
               icon={<Sparkles size={16} color={colors.cyan} />}
             />
             <StatCard
               style={styles.statItem}
-              value="100 Creators"
-              label="毎日100人が登場"
+              value={t("theme.creators")}
+              label={t("theme.creatorsDesc")}
               icon={<Users size={16} color={colors.cyan} />}
             />
           </View>

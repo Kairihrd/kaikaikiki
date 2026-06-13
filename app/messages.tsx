@@ -4,16 +4,18 @@ import { MessageCircle } from "lucide-react-native";
 import ScreenGlow from "@/components/ScreenGlow";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
+import { useLanguage } from "@/context/LanguageContext";
 import { colors, radius } from "@/lib/theme";
 
 // DM(メッセージ)画面。ヘッダーの DM アイコンからの遷移先。
 // MVP プレースホルダー(本実装は別途)。ヘッダーの DM 導線を成立させるための最小画面。
 export default function MessagesScreen() {
+  const { t } = useLanguage();
   return (
     <View style={styles.root}>
       <ScreenGlow />
       <SafeAreaView edges={["top"]} style={styles.safe}>
-        <AppHeader subtitle="メッセージ" showBack />
+        <AppHeader subtitle={t("header.messages")} showBack />
 
         <ScrollView
           contentContainerStyle={styles.content}
@@ -23,9 +25,9 @@ export default function MessagesScreen() {
             <View style={styles.iconWrap}>
               <MessageCircle size={34} color={colors.cyan} />
             </View>
-            <Text style={styles.title}>メッセージ</Text>
+            <Text style={styles.title}>{t("header.messages")}</Text>
             <Text style={styles.sub}>
-              クリエイターとのDMがここに表示されます。
+              {t("messages.subtitle")}
             </Text>
           </View>
         </ScrollView>

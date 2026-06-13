@@ -5,18 +5,20 @@ import ScreenGlow from "@/components/ScreenGlow";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import CreatorMiniCard from "@/components/CreatorMiniCard";
+import { useLanguage } from "@/context/LanguageContext";
 import { getSupportingCreators } from "@/lib/mockData";
 import { colors, radius } from "@/lib/theme";
 
 // 7. サポーター中
 export default function SupportingScreen() {
+  const { t } = useLanguage();
   const creators = getSupportingCreators();
 
   return (
     <View style={styles.root}>
       <ScreenGlow />
       <SafeAreaView edges={["top"]} style={styles.safe}>
-        <AppHeader subtitle="サポーター中" />
+        <AppHeader subtitle={t("header.supporting")} />
 
         <ScrollView
           contentContainerStyle={styles.content}
@@ -26,9 +28,9 @@ export default function SupportingScreen() {
             <View style={styles.iconWrap}>
               <Users size={34} color={colors.cyan} />
             </View>
-            <Text style={styles.title}>サポーター中</Text>
+            <Text style={styles.title}>{t("header.supporting")}</Text>
             <Text style={styles.sub}>
-              あなたが応援しているクリエイターがここに表示されます。
+              {t("supporting.subtitle")}
             </Text>
           </View>
 

@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   BadgeCheck,
-  Bell,
   Check,
   Heart,
   MessageCircle,
@@ -27,13 +26,20 @@ import {
   type Artwork,
 } from "@/lib/mockData";
 import { genreMeta } from "@/lib/genre";
+import { useLanguage } from "@/context/LanguageContext";
 import { formatCount } from "@/lib/format";
 import { colors, gradient, radius } from "@/lib/theme";
 
-const PROFILE_TABS = ["作品", "いいね", "コメント", "下書き"];
+const PROFILE_TAB_KEYS = [
+  "profile.tabWorks",
+  "profile.tabLikes",
+  "profile.tabComments",
+  "profile.tabDrafts",
+];
 
 // 5. マイページ
 export default function ProfileScreen() {
+  const { t } = useLanguage();
   const me = FEATURED_CREATOR;
   const myWorks = getTodaysArtworks().slice(1, 13);
   // 「ビルボードに表示される自信作」は自分で設定する(ローカルstateで差し替え)。
@@ -46,7 +52,7 @@ export default function ProfileScreen() {
     <View style={styles.root}>
       <ScreenGlow />
       <SafeAreaView edges={["top"]} style={styles.safe}>
-        <AppHeader subtitle="マイページ" showProfile={false} showMenu />
+        <AppHeader subtitle={t("header.profile")} showProfile={false} showMenu />
 
         <ScrollView
           contentContainerStyle={styles.content}
@@ -58,39 +64,51 @@ export default function ProfileScreen() {
               <Image source={{ uri: me.avatarUrl }} style={styles.avatar} contentFit="cover" />
             </LinearGradient>
             <View style={styles.nameRow}>
-              <Text style={styles.name}>{me.name}</Text>
+              <Text style={styles.name}>{t("profile.name")}</Text>
               <BadgeCheck size={20} color={colors.cyan} />
             </View>
             <Text style={styles.handle}>{me.handle}</Text>
-            <Text style={styles.bio}>光の先にあるものを、想像してみる。</Text>
-            <Text style={styles.meta}>19歳・東京　写真家 / 大学生</Text>
+            <Text style={styles.bio}>{t("profile.bio")}</Text>
+            <Text style={styles.meta}>
+              {t("profile.age19")}・{t("profile.tokyo")}　{t("profile.photographer")} / {t("profile.student")}
+            </Text>
             <View style={styles.tagRow}>
-              {["#写真", "#建築", "#モノクロ", "#光と影"].map((t) => (
-                <Tag key={t} label={t} />
+              {[
+                "tag.photo",
+                "tag.architecture",
+                "tag.monochrome",
+                "tag.lightShadow",
+              ].map((key) => (
+                <Tag key={key} label={`#${t(key)}`} />
               ))}
             </View>
-            <Pressable style={styles.editButton}>
-              <Text style={styles.editText}>プロフィールを編集</Text>
+            <Pressable
+              style={styles.editButton}
+              onPress={() =>
+                Alert.alert(t("settings.editProfileTitle"), t("settings.editProfileMsg"))
+              }
+            >
+              <Text style={styles.editText}>{t("profile.editProfile")}</Text>
             </Pressable>
           </View>
 
           {/* ステータスカード(サポーターカードはタップで /supporting へ) */}
           <View style={styles.stats}>
             <Pressable style={styles.statItem} onPress={() => router.push("/supporting")}>
-              <StatCard value={formatCount(me.supporterCount)} label="サポーター" />
+              <StatCard value={formatCount(me.supporterCount)} label={t("profile.supportersStat")} />
             </Pressable>
-            <StatCard style={styles.statItem} value="328" label="いいねした作品" />
+            <StatCard style={styles.statItem} value="328" label={t("profile.likedWorks")} />
           </View>
           <View style={styles.stats}>
-            <StatCard style={styles.statItem} value="56" label="コメントした数" />
-            <StatCard style={styles.statItem} value="12" label="コレクション" />
+            <StatCard style={styles.statItem} value="56" label={t("profile.commentsStat")} />
+            <StatCard style={styles.statItem} value="12" label={t("profile.collections")} />
           </View>
 
           {/* 固定作品(自分で設定する自信作) */}
           <View>
-            <Text style={styles.sectionTitle}>ビルボードに表示される自信作</Text>
+            <Text style={styles.sectionTitle}>{t("profile.featuredTitle")}</Text>
             <Text style={styles.sectionDesc}>
-              あなたがビルボード候補として見せたい代表作を1つ設定できます。
+              {t("profile.featuredDesc")}
             </Text>
             <GlassCard style={styles.pinned}>
               <Image source={{ uri: pinned.imageUrl }} style={styles.pinnedImage} contentFit="cover" />
@@ -111,7 +129,7 @@ export default function ProfileScreen() {
                   style={styles.pinButton}
                   onPress={() => setPinPickerOpen(true)}
                 >
-                  <Text style={styles.pinButtonText}>自信作を設定する</Text>
+                  <Text style={styles.pinButtonText}>{t("profile.setFeatured")}</Text>
                 </Pressable>
               </View>
             </GlassCard>
@@ -119,13 +137,13 @@ export default function ProfileScreen() {
 
           {/* タブ */}
           <View style={styles.tabs}>
-            {PROFILE_TABS.map((tab, i) => (
+            {PROFILE_TAB_KEYS.map((tabKey, i) => (
               <Pressable
-                key={tab}
+                key={tabKey}
                 style={[styles.tab, i === 0 ? styles.tabActive : styles.tabInactive]}
               >
                 <Text style={[styles.tabText, i === 0 && styles.tabTextActive]}>
-                  {tab}
+                  {t(tabKey)}
                 </Text>
               </Pressable>
             ))}
@@ -153,10 +171,8 @@ export default function ProfileScreen() {
 
           {/* 下部メニュー */}
           <View style={styles.menu}>
-            <MenuRow icon={<Users size={20} color={colors.textDim} />} label="サポーターになってくれた人" onPress={() => router.push("/supporting")} />
-            <MenuRow icon={<MessageCircle size={20} color={colors.textDim} />} label="メッセージ" />
-            <MenuRow icon={<Settings size={20} color={colors.textDim} />} label="アカウント設定" />
-            <MenuRow icon={<Bell size={20} color={colors.textDim} />} label="お知らせ" />
+            <MenuRow icon={<Users size={20} color={colors.textDim} />} label={t("profile.supporters")} onPress={() => router.push("/supporting")} />
+            <MenuRow icon={<Settings size={20} color={colors.textDim} />} label={t("profile.accountSettings")} onPress={() => router.push("/settings")} />
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -172,13 +188,13 @@ export default function ProfileScreen() {
         <Pressable style={styles.backdrop} onPress={() => setPinPickerOpen(false)}>
           <Pressable style={styles.sheet} onPress={() => {}}>
             <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>自信作を選ぶ</Text>
+              <Text style={styles.sheetTitle}>{t("profile.setFeatured")}</Text>
               <Pressable onPress={() => setPinPickerOpen(false)} accessibilityLabel="閉じる">
                 <X size={22} color={colors.textDim} />
               </Pressable>
             </View>
             <Text style={styles.sheetSub}>
-              ビルボード候補として見せたい代表作を1つ選んでください。
+              {t("profile.featuredDesc")}
             </Text>
 
             <ScrollView style={styles.sheetList} showsVerticalScrollIndicator={false}>

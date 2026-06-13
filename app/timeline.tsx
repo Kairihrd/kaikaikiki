@@ -518,7 +518,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  logoImg: { width: 72, height: 26 },
+  logoImg: { width: 100, height: 36 },
   topActions: { flexDirection: "row", gap: 8 },
   tabs: { flexDirection: "row", gap: 8, paddingVertical: 12 },
   tab: { borderRadius: 999, paddingHorizontal: 18, paddingVertical: 6 },

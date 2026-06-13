@@ -25,6 +25,7 @@ import {
   type ResonanceMatch,
   type SensibilityTrait,
 } from "@/lib/mockData";
+import { useLanguage } from "@/context/LanguageContext";
 import { formatCount } from "@/lib/format";
 import { colors, gradient, radius } from "@/lib/theme";
 
@@ -83,6 +84,7 @@ function toResonanceMatch(m: ApiMatch): ResonanceMatch {
 // AIは作品を評価しない。いいね履歴から感性を推定し、ジャンルを越えた出会いを推薦する。
 // EXPO_PUBLIC_API_URL が設定され backend が起動していれば API を使い、失敗時はモックにフォールバック。
 export default function MatchingScreen() {
+  const { t } = useLanguage();
   const [matches, setMatches] = useState<ResonanceMatch[]>(() => getResonanceMatches());
   const [profile, setProfile] = useState<SensibilityTrait[]>(() => getSensibilityProfile());
   const [discovery, setDiscovery] = useState<Discovery>(() => getDiscovery());
@@ -212,7 +214,7 @@ export default function MatchingScreen() {
     <View style={styles.root}>
       <ScreenGlow />
       <SafeAreaView edges={["top"]} style={styles.safe}>
-        <AppHeader subtitle="マッチング" />
+        <AppHeader subtitle={t("header.matching")} />
 
         <ScrollView
           contentContainerStyle={styles.content}

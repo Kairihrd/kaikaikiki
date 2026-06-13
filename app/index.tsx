@@ -14,10 +14,12 @@ import {
   type Genre,
 } from "@/lib/mockData";
 import { useCurrentTheme } from "@/lib/themeApi";
+import { useLanguage } from "@/context/LanguageContext";
 import { colors, radius } from "@/lib/theme";
 
 // 1. 今日のビルボード(Apple Watch ホーム風のハニカム 2Dパン キャンバス)
 export default function HomeScreen() {
+  const { t } = useLanguage();
   const [filterOpen, setFilterOpen] = useState(false);
   const [genre, setGenre] = useState<Genre | null>(null);
   const { theme } = useCurrentTheme();
@@ -34,25 +36,25 @@ export default function HomeScreen() {
     <View style={styles.root}>
       <ScreenGlow />
       <SafeAreaView edges={["top"]} style={styles.safe}>
-        <AppHeader subtitle="今日のビルボード" />
+        <AppHeader subtitle={t("header.billboard")} />
 
         {/* コンパクトな情報バー(テーマ / フィルター) */}
         <View style={styles.topBar}>
           <View>
             <Text style={styles.date}>2025.05.24</Text>
-            <Text style={styles.todays}>Today&apos;s 100</Text>
+            <Text style={styles.todays}>{t("common.todays100")}</Text>
           </View>
           <View style={styles.topActions}>
             <Pressable style={styles.chip} onPress={() => router.push("/theme")}>
               <Sparkles size={14} color={colors.cyan} />
               <Text style={styles.chipText} numberOfLines={1}>
-                {theme.title}
+                {theme.title === "境界" ? t("common.boundary") : theme.title}
               </Text>
             </Pressable>
             <Pressable style={styles.chip} onPress={() => setFilterOpen(true)}>
               <SlidersHorizontal size={14} color={colors.textDim} />
               <Text style={styles.chipText} numberOfLines={1}>
-                {genre ?? "すべて"}
+                {genre ?? t("common.all")}
               </Text>
             </Pressable>
           </View>

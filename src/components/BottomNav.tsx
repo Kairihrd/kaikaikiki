@@ -11,11 +11,12 @@ import {
   User,
   type LucideProps,
 } from "lucide-react-native";
+import { useLanguage } from "@/context/LanguageContext";
 import { colors, gradient } from "@/lib/theme";
 
 interface NavItem {
   href: "/" | "/matching" | "/timeline" | "/profile";
-  label: string;
+  labelKey: string;
   icon: ComponentType<LucideProps>;
 }
 
@@ -23,18 +24,19 @@ interface NavItem {
 // 「テーマ」はビルボード配下のサブ画面(/theme)として扱い、下部タブには置かない。
 // 「サポーター中」もマイページ配下の機能として /supporting に集約する。
 const LEFT: NavItem[] = [
-  { href: "/", label: "ビルボード", icon: LayoutGrid },
-  { href: "/matching", label: "マッチング", icon: HeartHandshake },
+  { href: "/", labelKey: "nav.billboard", icon: LayoutGrid },
+  { href: "/matching", labelKey: "nav.matching", icon: HeartHandshake },
 ];
 const RIGHT: NavItem[] = [
-  { href: "/timeline", label: "タイムライン", icon: Play },
-  { href: "/profile", label: "マイページ", icon: User },
+  { href: "/timeline", labelKey: "nav.timeline", icon: Play },
+  { href: "/profile", labelKey: "nav.profile", icon: User },
 ];
 
 // 全画面共通の下部タブバー(iOS風・フローティング)。中央は虹色グラデの投稿ボタン。
 export default function BottomNav() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+  const { t } = useLanguage();
 
   // テーマ(/theme)はビルボード配下なのでビルボードを、サポーター中(/supporting)は
   // マイページ配下なのでマイページを、それぞれアクティブ扱いにする。
@@ -52,7 +54,7 @@ export default function BottomNav() {
     >
       <View style={styles.bar}>
         {LEFT.map((item) => (
-          <NavLink key={item.href} item={item} active={isActive(item.href)} />
+          <NavLink key={item.href} item={item} active={isActive(item.href)} label={t(item.labelKey)} />
         ))}
 
         {/* 中央投稿ボタン(虹色グラデーション枠・大きめ) */}
@@ -74,21 +76,21 @@ export default function BottomNav() {
         </Pressable>
 
         {RIGHT.map((item) => (
-          <NavLink key={item.href} item={item} active={isActive(item.href)} />
+          <NavLink key={item.href} item={item} active={isActive(item.href)} label={t(item.labelKey)} />
         ))}
       </View>
     </View>
   );
 }
 
-function NavLink({ item, active }: { item: NavItem; active: boolean }) {
+function NavLink({ item, active, label }: { item: NavItem; active: boolean; label: string }) {
   const Icon = item.icon;
   const tint = active ? colors.text : colors.textFaint;
   return (
     <Pressable onPress={() => router.push(item.href)} style={styles.link}>
       <Icon size={22} color={tint} />
       <Text style={[styles.linkLabel, { color: tint }]} numberOfLines={1}>
-        {item.label}
+        {label}
       </Text>
     </Pressable>
   );
