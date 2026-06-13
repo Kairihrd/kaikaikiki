@@ -30,6 +30,7 @@ import {
 import { useLanguage } from "@/context/LanguageContext";
 import { usePosts, type UserPost } from "@/context/PostsContext";
 import { useProfile } from "@/context/ProfileContext";
+import { useSupport } from "@/context/SupportContext";
 import { useAuth } from "@/context/AuthContext";
 import { TARGET_LABEL } from "@/lib/userPost";
 import { formatCount } from "@/lib/format";
@@ -55,10 +56,10 @@ export default function ProfileScreen() {
     : { uri: me.avatarUrl };
   // マイページには「自分が投稿した作品」だけを表示する。
   const { posts, featuredPost, setFeatured } = usePosts();
+  const { supports } = useSupport();
   const [pinPickerOpen, setPinPickerOpen] = useState(false);
-  // Senseed Status。
-  // 表現=実データ(投稿数: PostsContext)。発掘=モック値(実集計ストアが未実装のため)。
-  const status = getSenseedStatus(posts.length);
+  // Senseed Status。表現=投稿数(PostsContext)、発掘=サポート数(SupportContext)の実データ。
+  const status = getSenseedStatus(posts.length, supports.length);
   const thumb = (p: UserPost) => ({ uri: p.imageUri ?? DEFAULT_ARTWORK_IMAGE });
 
   return (
@@ -92,10 +93,10 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
 
-          {/* ステータスカード(サポーターカードはタップで /supporting へ) */}
+          {/* ステータスカード(「サポート中」=自分がサポートした作品。タップで /supporting へ) */}
           <View style={styles.stats}>
             <Pressable style={styles.statItem} onPress={() => router.push("/supporting")}>
-              <StatCard value={formatCount(me.supporterCount)} label={t("profile.supportersStat")} />
+              <StatCard value={formatCount(supports.length)} label="サポート中" />
             </Pressable>
             <StatCard style={styles.statItem} value="328" label={t("profile.likedWorks")} />
           </View>
@@ -197,7 +198,7 @@ export default function ProfileScreen() {
 
           {/* 下部メニュー */}
           <View style={styles.menu}>
-            <MenuRow icon={<Users size={20} color={colors.textDim} />} label={t("profile.supporters")} onPress={() => router.push("/supporting")} />
+            <MenuRow icon={<Users size={20} color={colors.textDim} />} label="サポート中の作品" onPress={() => router.push("/supporting")} />
             <MenuRow icon={<Settings size={20} color={colors.textDim} />} label={t("profile.accountSettings")} onPress={() => router.push("/settings")} />
           </View>
 

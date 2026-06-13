@@ -36,7 +36,9 @@ import {
 import { usePosts } from "@/context/PostsContext";
 import { useProfile } from "@/context/ProfileContext";
 import { useLikes } from "@/context/LikesContext";
+import { useSupport } from "@/context/SupportContext";
 import { userPostToArtwork } from "@/lib/userPost";
+import { hapticLight } from "@/lib/haptics";
 import { formatCount } from "@/lib/format";
 import { colors, radius } from "@/lib/theme";
 
@@ -60,8 +62,19 @@ export default function ArtworkDetailScreen() {
 
   const scrollRef = useRef<ScrollView>(null);
   const { isLiked, toggleLike } = useLikes();
+  const { isSupported, toggleSupport } = useSupport();
   const liked = isLiked(artwork.id);
-  const [supporting, setSupporting] = useState(false);
+  const supporting = isSupported(artwork.id);
+  const onToggleSupport = () => {
+    const now = toggleSupport({
+      id: artwork.id,
+      artistName: creator.name,
+      artistHandle: creator.handle,
+      artworkTitle: artwork.title,
+      imageUrl: artwork.imageUrl,
+    });
+    if (now) hapticLight(); // サポート時の軽い振動
+  };
   // 既定(モック)コメント + ユーザー追加コメント(作品IDごとに AsyncStorage 保存)。
   const seedComments = useMemo(
     () => getCommentsForArtwork(artwork.id),
@@ -142,9 +155,9 @@ export default function ArtworkDetailScreen() {
 
             <View style={styles.supportRow}>
               <GradientButton
-                label={supporting ? "サポーター中" : "サポーターになる"}
+                label={supporting ? "サポート中" : "サポートする"}
                 variant={supporting ? "ring" : "solid"}
-                onPress={() => setSupporting((v) => !v)}
+                onPress={onToggleSupport}
                 style={styles.flex1}
               />
               <Text style={styles.supportCount}>

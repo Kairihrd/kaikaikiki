@@ -7,6 +7,7 @@ import { LanguageProvider } from "@/context/LanguageContext";
 import { ProfileProvider } from "@/context/ProfileContext";
 import { PostsProvider } from "@/context/PostsContext";
 import { LikesProvider } from "@/context/LikesContext";
+import { SupportProvider } from "@/context/SupportContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { colors } from "@/lib/theme";
@@ -67,9 +68,11 @@ export default function RootLayout() {
             <ProfileProvider>
               <PostsProvider>
                 <LikesProvider>
-                  <NotificationProvider>
-                    <RootNavigation />
-                  </NotificationProvider>
+                  <SupportProvider>
+                    <NotificationProvider>
+                      <RootNavigation />
+                    </NotificationProvider>
+                  </SupportProvider>
                 </LikesProvider>
               </PostsProvider>
             </ProfileProvider>
