@@ -238,8 +238,16 @@ const styles = StyleSheet.create({
   eye: { padding: 6 },
   error: { color: colors.pink, fontSize: 13, marginTop: 8 },
   submit: { marginTop: 16 },
-  switch: { alignItems: "center", paddingVertical: 14 },
-  switchText: { color: colors.cyan, fontSize: 14, fontWeight: "600" },
+  switch: {
+    alignItems: "center",
+    paddingVertical: 13,
+    marginTop: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(34,211,238,0.5)",
+    backgroundColor: "rgba(34,211,238,0.08)",
+  },
+  switchText: { color: colors.cyan, fontSize: 14, fontWeight: "700" },
   demoBox: {
     marginTop: 8,
     borderRadius: radius.lg,

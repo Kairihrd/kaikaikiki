@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Check,
   Heart,
+  LogOut,
   MessageCircle,
   Settings,
   Users,
@@ -26,6 +27,7 @@ import {
 import { genreMeta } from "@/lib/genre";
 import { useLanguage } from "@/context/LanguageContext";
 import { useProfile } from "@/context/ProfileContext";
+import { useAuth } from "@/context/AuthContext";
 import { formatCount } from "@/lib/format";
 import { colors, gradient, radius } from "@/lib/theme";
 
@@ -40,7 +42,14 @@ const PROFILE_TAB_KEYS = [
 export default function ProfileScreen() {
   const { t } = useLanguage();
   const { profile } = useProfile();
+  const { signOut } = useAuth();
   const me = FEATURED_CREATOR;
+
+  const confirmLogout = () =>
+    Alert.alert(t("auth.logout"), t("auth.logoutConfirm"), [
+      { text: "キャンセル", style: "cancel" },
+      { text: t("auth.logout"), style: "destructive", onPress: () => signOut() },
+    ]);
   // 保存済みプロフィールがあれば優先。無ければ i18n / mock の既定値。
   const displayName = profile.name ?? t("profile.name");
   const displayBio = profile.bio ?? t("profile.bio");
@@ -167,6 +176,12 @@ export default function ProfileScreen() {
             <MenuRow icon={<Users size={20} color={colors.textDim} />} label={t("profile.supporters")} onPress={() => router.push("/supporting")} />
             <MenuRow icon={<Settings size={20} color={colors.textDim} />} label={t("profile.accountSettings")} onPress={() => router.push("/settings")} />
           </View>
+
+          {/* ログアウト(一番下・危険操作っぽい赤系) */}
+          <Pressable style={styles.logout} onPress={confirmLogout}>
+            <LogOut size={18} color={colors.pink} />
+            <Text style={styles.logoutText}>{t("auth.logout")}</Text>
+          </Pressable>
         </ScrollView>
       </SafeAreaView>
       <BottomNav />
@@ -315,6 +330,19 @@ const styles = StyleSheet.create({
   menu: { gap: 10 },
   menuRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16 },
   menuLabel: { color: colors.text, fontSize: 14, fontWeight: "600" },
+  logout: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 4,
+    paddingVertical: 14,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: "rgba(236,72,153,0.4)",
+    backgroundColor: "rgba(236,72,153,0.08)",
+  },
+  logoutText: { color: colors.pink, fontSize: 14, fontWeight: "700" },
 
   // 自信作ピッカー(モーダル)
   backdrop: {
