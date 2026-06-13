@@ -1,4 +1,4 @@
-# Billdist (Mobile)
+# Senseed(Mobile)
 
 毎日100人のクリエイター・作品が表示される、ビルボード型のアート発掘SNS。
 **Expo + React Native** で作るスマホアプリ版の MVP（UIモック）です。
