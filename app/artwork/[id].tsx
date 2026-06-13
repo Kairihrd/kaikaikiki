@@ -141,9 +141,13 @@ export default function ArtworkDetailScreen() {
             ) : null}
           </View>
 
-          {/* 作者プロフィールカード */}
+          {/* 作者プロフィールカード(アイコン/名前タップでクリエイタープロフィールへ) */}
           <GlassCard style={styles.creatorCard}>
-            <View style={styles.creatorRow}>
+            <Pressable
+              style={styles.creatorRow}
+              onPress={() => router.push(`/creator/${encodeURIComponent(creator.handle)}`)}
+              accessibilityLabel={`${creator.name} のプロフィール`}
+            >
               <Image source={{ uri: creator.avatarUrl }} style={styles.avatar} contentFit="cover" />
               <View style={styles.creatorInfo}>
                 <Text style={styles.creatorName}>{creator.name}</Text>
@@ -152,7 +156,7 @@ export default function ArtworkDetailScreen() {
                   {creator.location}・{creator.role}
                 </Text>
               </View>
-            </View>
+            </Pressable>
 
             <View style={styles.supportRow}>
               <GradientButton
