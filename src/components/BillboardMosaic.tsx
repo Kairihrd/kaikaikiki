@@ -238,6 +238,9 @@ function CardNode({
   // (アイコンだけのグラデーションカードを作らない。画像欠落時のみ保険でグラデ表示)
   const photo = !!art.imageUrl;
   const Icon = meta.Icon;
+  // 100枚補完用のプレースホルダー(ph-*)は実体の作品詳細が無いため、
+  // タップ不可にする(誤って別作品の詳細を開かせない)。
+  const isPlaceholder = art.id.startsWith("ph-");
   const left = centerX + slot.baseX - CELL / 2;
   const top_ = centerY + slot.baseY - CELL / 2;
 
@@ -271,7 +274,10 @@ function CardNode({
     >
       <Pressable
         style={styles.card}
-        onPress={() => router.push(`/artwork/${art.id}`)}
+        disabled={isPlaceholder}
+        onPress={
+          isPlaceholder ? undefined : () => router.push(`/artwork/${art.id}`)
+        }
       >
         {photo ? (
           <Image

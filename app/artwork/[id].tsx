@@ -49,23 +49,69 @@ export default function ArtworkDetailScreen() {
   const { posts } = usePosts();
   const { profile } = useProfile();
   // モック作品が無ければ、自分の投稿(UserPost)を作品として表示する。
+  // どちらでも見つからなければ undefined のまま(誤って別作品にフォールバックしない)。
   const userPost = posts.find((p) => p.id === id);
   const artwork =
-    getArtworkById(id ?? "1") ??
+    getArtworkById(id ?? "") ??
     (userPost
       ? userPostToArtwork(userPost, {
           name: profile.name ?? "あなた",
           handle: FEATURED_CREATOR.handle,
           avatarUrl: profile.avatarUri ?? FEATURED_CREATOR.avatarUrl,
         })
-      : getArtworkById("1")!);
-  const creator = getCreatorByHandle(artwork.creatorHandle);
+      : undefined);
+  const creator = artwork ? getCreatorByHandle(artwork.creatorHandle) : null;
+  const artworkId = artwork?.id ?? "";
 
   const scrollRef = useRef<ScrollView>(null);
   const { isLiked, toggleLike } = useLikes();
   const { isSupported, toggleSupport } = useSupport();
-  const liked = isLiked(artwork.id);
-  const supporting = isSupported(artwork.id);
+  const liked = isLiked(artworkId);
+  const supporting = isSupported(artworkId);
+  // 既定(モック)コメント + ユーザー追加コメント(作品IDごとに AsyncStorage 保存)。
+  const seedComments = useMemo(
+    () => (artworkId ? getCommentsForArtwork(artworkId) : []),
+    [artworkId],
+  );
+  const [userComments, setUserComments] = useState<Comment[]>([]);
+  const [draft, setDraft] = useState("");
+  const commentsKey = `senseed:comments:${artworkId || "none"}`;
+
+  // 保存済みのユーザーコメントを復元(離脱して戻っても残る)。
+  useEffect(() => {
+    if (!artworkId) return;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(commentsKey);
+        if (raw) setUserComments(JSON.parse(raw));
+        else setUserComments([]);
+      } catch {
+        setUserComments([]);
+      }
+    })();
+  }, [commentsKey, artworkId]);
+
+  // 未解決ID(存在しない作品 / ph-* など): 誤った作品を見せず、空状態で戻れるようにする。
+  if (!artwork || !creator) {
+    return (
+      <View style={styles.root}>
+        <ScreenGlow />
+        <SafeAreaView edges={["top"]} style={styles.safe}>
+          <AppHeader subtitle="作品" showBack showProfile={false} centerTitle />
+          <View style={styles.notFound}>
+            <Text style={styles.notFoundTitle}>作品が見つかりません</Text>
+            <Text style={styles.notFoundDesc}>この作品は表示できませんでした。</Text>
+            <Pressable style={styles.notFoundBtn} onPress={() => router.back()}>
+              <Text style={styles.notFoundBtnText}>戻る</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+        <BottomNav />
+      </View>
+    );
+  }
+
+  const comments = [...seedComments, ...userComments];
   const onToggleSupport = () => {
     const now = toggleSupport({
       id: artwork.id,
@@ -76,29 +122,6 @@ export default function ArtworkDetailScreen() {
     });
     if (now) hapticLight(); // サポート時の軽い振動
   };
-  // 既定(モック)コメント + ユーザー追加コメント(作品IDごとに AsyncStorage 保存)。
-  const seedComments = useMemo(
-    () => getCommentsForArtwork(artwork.id),
-    [artwork.id],
-  );
-  const [userComments, setUserComments] = useState<Comment[]>([]);
-  const comments = [...seedComments, ...userComments];
-  const [draft, setDraft] = useState("");
-  const commentsKey = `senseed:comments:${artwork.id}`;
-
-  // 保存済みのユーザーコメントを復元(離脱して戻っても残る)。
-  useEffect(() => {
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(commentsKey);
-        if (raw) setUserComments(JSON.parse(raw));
-        else setUserComments([]);
-      } catch {
-        setUserComments([]);
-      }
-    })();
-  }, [commentsKey]);
-
   const likeCount = artwork.likes + (liked ? 1 : 0);
 
   const onShare = async () => {
@@ -303,6 +326,19 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   safe: { flex: 1 },
   content: { paddingHorizontal: 16, paddingBottom: 130, gap: 18 },
+  notFound: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 32 },
+  notFoundTitle: { color: colors.text, fontSize: 18, fontWeight: "800" },
+  notFoundDesc: { color: colors.textDim, fontSize: 13, textAlign: "center" },
+  notFoundBtn: {
+    marginTop: 8,
+    borderRadius: 999,
+    borderColor: colors.borderStrong,
+    borderWidth: 1,
+    backgroundColor: colors.glass,
+    paddingHorizontal: 28,
+    paddingVertical: 11,
+  },
+  notFoundBtnText: { color: colors.text, fontSize: 14, fontWeight: "700" },
   hero: {
     width: "100%",
     height: 360,
