@@ -29,6 +29,7 @@ export interface UserPost {
   target: PostTarget; // 投稿先
   theme?: string; // テーマ投稿の場合のテーマ名
   isVideoWork?: boolean; // 動画作品(サムネ + 再生ボタン表示)
+  videoUrl?: string; // 動画作品の外部URL(作品詳細「動画を見る」で開く)
   createdAt: number;
 }
 

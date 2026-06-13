@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  Linking,
   Pressable,
   ScrollView,
   Share,
@@ -209,6 +210,21 @@ export default function ArtworkDetailScreen() {
             </View>
           </View>
 
+          {/* 動画を見る(動画作品で videoUrl がある時だけ表示・外部URLを開く) */}
+          {userPost?.videoUrl ? (
+            <Pressable
+              style={styles.videoButton}
+              onPress={() =>
+                Linking.openURL(userPost.videoUrl!).catch(() =>
+                  Alert.alert("エラー", "動画を開けませんでした。"),
+                )
+              }
+            >
+              <Play size={18} color={colors.bg} fill={colors.bg} />
+              <Text style={styles.videoButtonText}>動画を見る</Text>
+            </Pressable>
+          ) : null}
+
           {/* 情報カード */}
           <GlassCard style={styles.infoCard}>
             <Row label="ジャンル" value={artwork.genre} />
@@ -344,6 +360,16 @@ const styles = StyleSheet.create({
   postedAt: { color: colors.textFaint, fontSize: 12, marginTop: 4 },
   desc: { color: colors.textDim, fontSize: 14, lineHeight: 22, marginTop: 10 },
   tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 },
+  videoButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 999,
+    backgroundColor: colors.cyan,
+    paddingVertical: 14,
+  },
+  videoButtonText: { color: colors.bg, fontSize: 15, fontWeight: "800" },
   infoCard: { padding: 18, gap: 10 },
   infoRow: { flexDirection: "row", justifyContent: "space-between" },
   infoRowLabel: { color: colors.textFaint, fontSize: 14 },
