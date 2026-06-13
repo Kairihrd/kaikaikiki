@@ -12,99 +12,87 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { Music, Play } from "lucide-react-native";
 import { type Artwork } from "@/lib/mockData";
-import { colors, gradient, radius } from "@/lib/theme";
+import { colors, radius } from "@/lib/theme";
 
 interface BillboardMosaicProps {
   artworks: Artwork[];
-  /** 中央に大きく置く注目作品ID(既定は先頭) */
+  /** 互換用(現在のレイアウトでは特別な強調はしない) */
   highlightId?: string;
 }
 
-type Slot = { art: Artwork; x: number; y: number; size: number; main: boolean };
+type Slot = { art: Artwork; x: number; y: number; w: number; h: number };
 
-// 画面に並べる最大カード数(毎日100人のうち中央に集まる枚数)
-const MAX_CARDS = 42;
-// index / theme 画面の左右パディング(ここに合わせて中央寄せを計算する)
+// index / theme 画面の左右パディング
 const H_PADDING = 16;
+// 内部グリッドの列数(card unit = containerWidth / 6)
+const COLS = 6;
+const GAP = 7;
+// 表示枚数(30〜45枚)
+const MAX_CARDS = 42;
+
+// カード幅(列数)のパターン。小カード中心に中・大を少し混ぜる。
+// (3列 = 大カード。全体で数枚だけになるよう散らす)
+const WIDTH_PATTERN = [
+  2, 1, 3, 1, 2, 2, 1, 2, 1, 2, 3, 1, 2, 1, 1, 2, 2, 1, 2, 1,
+  3, 1, 2, 2, 1, 2, 1, 1, 2, 2, 1, 3, 1, 2, 1, 2, 2, 1, 2, 1, 1, 2,
+];
+// 縦横比(高さ = 幅 * aspect)。縦長・正方・横長を混ぜる。
+const ASPECT_PATTERN = [
+  1.25, 1.0, 1.15, 1.1, 0.9, 1.2, 1.0, 1.3, 1.1, 0.95,
+  1.2, 1.0, 1.15, 1.25, 1.0, 0.9, 1.2, 1.1, 1.0, 1.3,
+];
 
 // ----------------------------------------------------------------------------
-// 中央集合型(square honeycomb / clustered)レイアウトを計算する。
-// React Native には CSS grid が無いため、四角ハニカム状の格子セルを生成し、
-// 画面中央に近いセルから順に作品を割り当てて absolute 配置する。
-// 中央ほどカードが大きく、外側ほど小さくなり、ビルボードに作品が密集して
-// 浮かんでいるように見せる。390〜430px幅でも中央寄せになるよう幅から計算する。
+// 縦長モザイクビルボードのレイアウトを計算する。
+// CSS grid が無いため、6列のユニットグリッド上で skyline(スカイライン)詰めを行い、
+// 大小の角丸カードを横幅いっぱいに隙間なく縦へ積む。横にはみ出さず、重なりも出ない。
 // ----------------------------------------------------------------------------
-function buildLayout(width: number, artworks: Artwork[], mainId: string) {
-  if (width <= 0 || artworks.length === 0) {
+function buildLayout(containerWidth: number, artworks: Artwork[]) {
+  if (containerWidth <= 0 || artworks.length === 0) {
     return { slots: [] as Slot[], height: 0 };
   }
 
-  const cell = width / 4.4; // 1セルの基準サイズ(およそ4〜5列)
-  const canvasH = width * 1.04; // ビルボードはほぼ正方形(縦画面内に収める)
-  const cols = Math.round(width / cell) + 2;
-  const rows = Math.round(canvasH / cell) + 2;
-
-  const cx = width / 2;
-  const cy = canvasH / 2;
-
-  // 格子セルを生成。奇数行は半セルずらして「四角ハニカム」にする。
-  const offsetX = (width - cols * cell) / 2;
-  const cells: { x: number; y: number; d: number }[] = [];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const x = offsetX + c * cell + (r % 2 ? cell / 2 : 0);
-      const y = r * cell;
-      const dx = x + cell / 2 - cx;
-      const dy = y + cell / 2 - cy;
-      cells.push({ x, y, d: Math.hypot(dx, dy) });
-    }
-  }
-  cells.sort((a, b) => a.d - b.d); // 中央に近い順
-
-  // 中央(rank 0)に注目作品を置くため、main を先頭へ並べ替える。
-  const ordered = [...artworks];
-  const mi = ordered.findIndex((a) => a.id === mainId);
-  if (mi > 0) ordered.unshift(ordered.splice(mi, 1)[0]);
-
-  const count = Math.min(MAX_CARDS, ordered.length, cells.length);
+  const unit = containerWidth / COLS;
+  const colY = new Array<number>(COLS).fill(0); // 各列の現在の高さ(px)
+  const count = Math.min(MAX_CARDS, artworks.length);
   const slots: Slot[] = [];
+
   for (let i = 0; i < count; i++) {
-    const main = i === 0;
-    // small / medium / large を混ぜる。中央=large、近傍の一部=medium。
-    let factor = 0.92; // small
-    if (main) factor = 1.62; // large(中央の注目作品)
-    else if (i <= 6 || i % 7 === 3) factor = 1.2; // medium
-    else if (i % 11 === 5) factor = 1.42; // たまに大きめ
-    const size = Math.round(cell * factor);
-    const x = Math.round(cells[i].x + cell / 2 - size / 2);
-    const y = Math.round(cells[i].y + cell / 2 - size / 2);
-    slots.push({ art: ordered[i], x, y, size, main });
+    const wCols = Math.min(WIDTH_PATTERN[i % WIDTH_PATTERN.length], COLS);
+    const aspect = ASPECT_PATTERN[i % ASPECT_PATTERN.length];
+
+    // wCols 列ぶんが入る開始列のうち、最も低い(y が小さい)位置を選ぶ。
+    let bestC = 0;
+    let bestY = Infinity;
+    for (let c = 0; c <= COLS - wCols; c++) {
+      let maxY = 0;
+      for (let k = 0; k < wCols; k++) maxY = Math.max(maxY, colY[c + k]);
+      if (maxY < bestY) {
+        bestY = maxY;
+        bestC = c;
+      }
+    }
+
+    const w = Math.round(wCols * unit - GAP);
+    const h = Math.round(wCols * unit * aspect - GAP);
+    const x = Math.round(bestC * unit);
+    const y = Math.round(bestY);
+    slots.push({ art: artworks[i], x, y, w, h });
+
+    const nextY = y + h + GAP;
+    for (let k = 0; k < wCols; k++) colY[bestC + k] = nextY;
   }
 
-  // 上下の余白を詰めて、クラスタを 0 起点に寄せる。
-  const minTop = Math.min(...slots.map((s) => s.y));
-  const maxBottom = Math.max(...slots.map((s) => s.y + s.size));
-  for (const s of slots) {
-    s.y -= minTop;
-  }
-
-  // 中央(large)が最前面に来るよう、小さい順に描画する(大きいカードが後 = 上)。
-  slots.sort((a, b) => a.size - b.size);
-
-  return { slots, height: maxBottom - minTop };
+  return { slots, height: Math.max(...colY) - GAP };
 }
 
-export default function BillboardMosaic({
-  artworks,
-  highlightId,
-}: BillboardMosaicProps) {
+export default function BillboardMosaic({ artworks }: BillboardMosaicProps) {
   const { width } = useWindowDimensions();
   const innerWidth = width - H_PADDING * 2;
-  const mainId = highlightId ?? artworks[0]?.id ?? "";
 
   const { slots, height } = useMemo(
-    () => buildLayout(innerWidth, artworks, mainId),
-    [innerWidth, artworks, mainId],
+    () => buildLayout(innerWidth, artworks),
+    [innerWidth, artworks],
   );
 
   return (
@@ -118,12 +106,13 @@ export default function BillboardMosaic({
 
 // 1枚のビルボードカード(角丸四角)。タップで作品詳細へ遷移し、押すと軽くスケールする。
 function BillboardCard({ slot }: { slot: Slot }) {
-  // 安定した Animated.Value を保持する(refのrender中アクセスを避けるため useState で遅延初期化)
+  // 安定した Animated.Value(refのrender中アクセスを避けるため useState で遅延初期化)
   const [scale] = useState(() => new Animated.Value(1));
+  const large = slot.w >= 110; // タイトルを出すのは中〜大カードのみ
 
   const pressIn = () =>
     Animated.spring(scale, {
-      toValue: 0.92,
+      toValue: 0.94,
       useNativeDriver: true,
       speed: 40,
       bounciness: 0,
@@ -136,71 +125,50 @@ function BillboardCard({ slot }: { slot: Slot }) {
       bounciness: 8,
     }).start();
 
-  const inner = (
-    <Animated.View
-      style={[
-        styles.card,
-        { width: slot.size, height: slot.size, transform: [{ scale }] },
-      ]}
-    >
-      <Image
-        source={{ uri: slot.art.imageUrl }}
-        style={StyleSheet.absoluteFill}
-        contentFit="cover"
-        transition={200}
-      />
-      {slot.main ? (
-        <LinearGradient
-          colors={["transparent", "rgba(0,0,0,0.82)"]}
-          style={styles.caption}
-        >
-          <Text style={styles.capTitle} numberOfLines={1}>
-            {slot.art.title}
-          </Text>
-          <Text style={styles.capName} numberOfLines={1}>
-            {slot.art.creatorName}
-          </Text>
-        </LinearGradient>
-      ) : null}
-      {slot.art.isVideo ? (
-        <View style={styles.badge}>
-          <Play size={11} color={colors.text} fill={colors.text} />
-        </View>
-      ) : slot.art.isAudio ? (
-        <View style={styles.badge}>
-          <Music size={11} color={colors.cyan} />
-        </View>
-      ) : null}
-    </Animated.View>
-  );
-
-  const card = (
+  return (
     <Pressable
       onPress={() => router.push(`/artwork/${slot.art.id}`)}
       onPressIn={pressIn}
       onPressOut={pressOut}
+      style={[styles.slot, { left: slot.x, top: slot.y }]}
     >
-      {inner}
+      <Animated.View
+        style={[
+          styles.card,
+          { width: slot.w, height: slot.h, transform: [{ scale }] },
+        ]}
+      >
+        <Image
+          source={{ uri: slot.art.imageUrl }}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          transition={200}
+        />
+        {large ? (
+          <LinearGradient
+            colors={["transparent", "rgba(0,0,0,0.78)"]}
+            style={styles.caption}
+          >
+            <Text style={styles.capTitle} numberOfLines={1}>
+              {slot.art.title}
+            </Text>
+            <Text style={styles.capName} numberOfLines={1}>
+              {slot.art.creatorName}
+            </Text>
+          </LinearGradient>
+        ) : null}
+        {slot.art.isVideo ? (
+          <View style={styles.badge}>
+            <Play size={10} color={colors.text} fill={colors.text} />
+          </View>
+        ) : slot.art.isAudio ? (
+          <View style={styles.badge}>
+            <Music size={10} color={colors.cyan} />
+          </View>
+        ) : null}
+      </Animated.View>
     </Pressable>
   );
-
-  // 中央の注目作品はグラデーション枠で強調する。
-  if (slot.main) {
-    return (
-      <View style={[styles.slot, { left: slot.x - 2, top: slot.y - 2 }]}>
-        <LinearGradient
-          colors={gradient.brand}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.ring}
-        >
-          {card}
-        </LinearGradient>
-      </View>
-    );
-  }
-
-  return <View style={[styles.slot, { left: slot.x, top: slot.y }]}>{card}</View>;
 }
 
 const styles = StyleSheet.create({
@@ -218,18 +186,14 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderWidth: 1,
   },
-  ring: {
-    borderRadius: radius.md + 3,
-    padding: 2,
-  },
   caption: {
     position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
     paddingHorizontal: 8,
-    paddingTop: 16,
-    paddingBottom: 7,
+    paddingTop: 14,
+    paddingBottom: 6,
   },
   capTitle: { color: colors.text, fontSize: 11, fontWeight: "700" },
   capName: { color: colors.textDim, fontSize: 9 },
@@ -237,8 +201,8 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 6,
     right: 6,
-    width: 20,
-    height: 20,
+    width: 18,
+    height: 18,
     borderRadius: 999,
     backgroundColor: "rgba(0,0,0,0.5)",
     alignItems: "center",

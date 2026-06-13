@@ -57,8 +57,8 @@ export interface Comment {
 // 信頼性のある picsum.photos をシード付きで使用(デモ中に画像が確実に表示される)。
 // 後で実画像 URL に差し替え可能。
 // ----------------------------------------------------------------------------
-const img = (seed: string, w = 600, h = 800) =>
-  `https://picsum.photos/seed/billdist-${seed}/${w}/${h}`;
+const img = (seed: string, w = 600, h = 800, grayscale = false) =>
+  `https://picsum.photos/seed/billdist-${seed}/${w}/${h}${grayscale ? "?grayscale" : ""}`;
 
 const avatar = (seed: string) =>
   `https://picsum.photos/seed/billdist-avatar-${seed}/200/200`;
@@ -186,14 +186,24 @@ const pickSize = (i: number): ArtworkSize => {
   return "small";
 };
 
+// モノクロ表示にすると相性の良いジャンル(写真・建築・彫刻)。
+// これに加えて一定間隔でもグレースケールにし、カラー/モノクロを混在させて
+// 風景写真ばかりに見えないよう見た目のバリエーションを出す。
+const GRAY_GENRES: Genre[] = ["写真", "建築", "彫刻"];
+
 const GENERATED: Artwork[] = SEEDS.map((s, idx) => {
   const i = idx + 2; // id=1 は featured
+  // seed をハンドル(ascii)ベースにして、毎回バラけた画像になるようにする。
+  const seed = `${s.handle.replace(/[@_]/g, "")}-${i}`;
+  const grayscale = GRAY_GENRES.includes(s.genre) || idx % 5 === 2;
+  // ジャンルごとに少し縦横比を変えて、サムネイルの雰囲気を散らす。
+  const tall = idx % 3 === 0;
   return {
     id: String(i),
     title: s.title,
     creatorName: s.name,
     creatorHandle: s.handle,
-    imageUrl: img(`art-${i}`, 600, 800),
+    imageUrl: img(seed, 600, tall ? 820 : 600, grayscale),
     genre: s.genre,
     theme: CURRENT_THEME,
     description: `${s.title} — ${s.genre}の視点から「${CURRENT_THEME}」を描いた一枚。`,

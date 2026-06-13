@@ -8,6 +8,8 @@ interface StatCardProps {
   label: string;
   sub?: string;
   icon?: ReactNode;
+  /** 右端に置く要素(chevron など) */
+  right?: ReactNode;
   style?: ViewStyle | ViewStyle[];
 }
 
@@ -17,6 +19,7 @@ export default function StatCard({
   label,
   sub,
   icon,
+  right,
   style,
 }: StatCardProps) {
   return (
@@ -36,6 +39,7 @@ export default function StatCard({
             </Text>
           ) : null}
         </View>
+        {right ? <View style={styles.rightWrap}>{right}</View> : null}
       </View>
     </GlassCard>
   );
@@ -43,16 +47,16 @@ export default function StatCard({
 
 const styles = StyleSheet.create({
   card: {
-    padding: 14,
+    padding: 11,
   },
   row: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
+    alignItems: "center",
+    gap: 9,
   },
   iconWrap: {
-    width: 34,
-    height: 34,
+    width: 30,
+    height: 30,
     borderRadius: radius.md,
     backgroundColor: colors.glassStrong,
     alignItems: "center",
@@ -63,17 +67,20 @@ const styles = StyleSheet.create({
   },
   value: {
     color: colors.text,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: "700",
   },
   label: {
     color: colors.textDim,
-    fontSize: 11,
+    fontSize: 10,
     marginTop: 2,
   },
   sub: {
     color: colors.cyan,
-    fontSize: 11,
-    marginTop: 3,
+    fontSize: 10,
+    marginTop: 2,
+  },
+  rightWrap: {
+    alignSelf: "center",
   },
 });

@@ -9,7 +9,15 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Check, SlidersHorizontal, Sparkles, Users, X } from "lucide-react-native";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  SlidersHorizontal,
+  Sparkles,
+  Users,
+  X,
+} from "lucide-react-native";
 import ScreenGlow from "@/components/ScreenGlow";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
@@ -46,28 +54,29 @@ export default function HomeScreen() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          {/* 日付 + Today's 100 */}
+          {/* 日付 + Today's 100(小さめ) */}
           <View style={styles.hero}>
-            <Text style={styles.date}>2025.05.24</Text>
+            <View style={styles.dateRow}>
+              <Text style={styles.date}>2025.05.24</Text>
+              <ChevronDown size={13} color={colors.textDim} />
+            </View>
             <Text style={styles.todays}>Today&apos;s 100</Text>
-            <Text style={styles.heroSub}>
-              今日選ばれた100の作品が、空間に浮かびあがる。
-            </Text>
           </View>
 
-          {/* 情報カード 2枚 */}
+          {/* 情報カード 2枚(小さめ) */}
           <View style={styles.stats}>
             <StatCard
               style={styles.statItem}
               value="100 Creators"
               label="毎日100人が登場"
-              icon={<Users size={16} color={colors.cyan} />}
+              icon={<Users size={15} color={colors.cyan} />}
             />
             <Pressable style={styles.statItem} onPress={() => router.push("/theme")}>
               <StatCard
                 value={`テーマ：${CURRENT_THEME}`}
                 label="今月のお題を見る"
-                icon={<Sparkles size={16} color={colors.cyan} />}
+                icon={<Sparkles size={15} color={colors.cyan} />}
+                right={<ChevronRight size={16} color={colors.textFaint} />}
               />
             </Pressable>
           </View>
@@ -166,26 +175,21 @@ function FilterRow({
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   safe: { flex: 1 },
-  content: { paddingHorizontal: 16, paddingBottom: 130, gap: 20 },
-  hero: { alignItems: "center", paddingTop: 6 },
+  content: { paddingHorizontal: 16, paddingBottom: 140, gap: 14 },
+  hero: { alignItems: "center", paddingTop: 2, gap: 1 },
+  dateRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   date: {
     color: colors.textDim,
-    fontSize: 13,
-    letterSpacing: 6,
+    fontSize: 12,
+    letterSpacing: 3,
   },
   todays: {
     color: colors.text,
-    fontSize: 36,
+    fontSize: 16,
     fontWeight: "800",
-    letterSpacing: -1,
-    marginTop: 4,
+    letterSpacing: -0.3,
   },
-  heroSub: {
-    color: colors.textDim,
-    fontSize: 12,
-    marginTop: 4,
-  },
-  stats: { flexDirection: "row", gap: 12 },
+  stats: { flexDirection: "row", gap: 10 },
   statItem: { flex: 1 },
   footer: { flexDirection: "row", gap: 12 },
   footerCard: {

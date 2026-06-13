@@ -16,31 +16,43 @@
 
 > Supabase / Gemini API はまだ接続していません。データはすべて `src/lib/mockData.ts` のモックから読み込んでいます（後で API に差し替えやすい構成）。
 
-## 起動方法（ポート 8082 固定）
+## 起動方法（iOS Simulator・推奨）
+
+iOS Simulator で確認するときは、**Expo Go を使わずネイティブ実行する `npm run ios` を推奨**します。Expo Go の接続キャッシュに依存しないため、`Could not connect to the server` が起きません。
 
 ```bash
 npm install
-npm run dev:ios   # ← 推奨。iOS Simulator を直接起動する
+npm run ios   # ← 推奨。Billdist を iOS Simulator にネイティブ実行（Expo Go 不要）
 ```
 
-> ⚠️ この環境では **ポート 8081 が別プロジェクトに使われている**ため、Billdist は **必ず 8082** を使います。下記の npm script はすべて 8082 固定です。素の `npx expo start`（ポート無指定）は 8081 に取られてポートが揺れるので使わないでください。
+- 初回は **prebuild（`ios/` 生成）→ CocoaPods → ネイティブビルド**が走るため数分かかります（2回目以降は速い）。
+- 初回に **bundle identifier を聞かれたら Enter** で既定値を受け入れてください。
+- ビルド済みアプリが Simulator に直接インストールされ、Metro（`127.0.0.1:8082`）に接続します。**Cmd+R のリロードでも接続エラーになりません**。
+- 必要環境: **Xcode + CocoaPods**（このMacは導入済みを確認済み）。
+
+> ⚠️ この環境では **ポート 8081 が別プロジェクトに使われている**ため、Billdist は **必ず 8082** を使います。下記 npm script はすべて 8082 固定です。素の `npx expo start`（ポート無指定）は使わないでください。
 
 ### 起動コマンド一覧
 
 | コマンド | 用途 |
 | --- | --- |
-| `npm run dev:ios` | **推奨**。キャッシュクリア + iOS Simulator を直接起動（`--clear --localhost --ios --port 8082`） |
-| `npm run dev` | 通常起動（`--port 8082`、QRコードで実機/Simulator） |
-| `npm run dev:clear` | キャッシュクリア起動（表示が崩れる/古いとき） |
-| `npm run dev:tunnel` | トンネル経由（同一Wi-Fiで繋がらない実機向け） |
+| `npm run ios` | **推奨**。iOS Simulator にネイティブ実行（`expo run:ios --port 8082`、Expo Go 不要） |
+| `npm run ios:clean` | ビルドキャッシュを使わずネイティブ実行（ビルドがおかしいとき） |
 | `npm run demo` | 本番に近いデモ起動（開発オーバーレイ非表示・最小化） |
 
-### なぜ `npm run dev:ios` が安定するのか（推奨理由）
+### 実機（物理デバイス）で確認するとき＝ Expo Go（補助）
 
-- **`--localhost`**: iOS Simulator は Mac と同じマシン上で動くため `127.0.0.1:8082` が常に有効。Wi-Fi の LAN IP が変わっても URL がズレず、`Could not connect` の主因（古い LAN URL を掴み続ける問題）を回避できる。
-- **`--ios`**: 毎回 Simulator を**最新の起動中サーバーに繋ぎ直して**アプリを開く。Expo Go が古いセッション URL を掴んでいても、起動のたびに上書きされる。
-- **`--port 8082`**: ポートを固定。8081 を使う別プロジェクトと衝突しない。
-- **`--clear`**: 古い Metro キャッシュを捨てて起動。
+実機確認は従来どおり Expo Go を使います（Simulator では使いません）。
+
+| コマンド | 用途 |
+| --- | --- |
+| `npm run dev` | 開発サーバー起動（QRコードを実機の Expo Go で読む・`--port 8082`） |
+| `npm run dev:tunnel` | 同一Wi-Fiで繋がらない実機向け（トンネル経由） |
+| `npm run dev:clear` | Metro キャッシュをクリアして起動 |
+
+> Simulator で `Could not connect to the server` が出る場合は、Expo Go 経由（`dev:ios` / `dev:ios:fresh`）ではなく **`npm run ios`（ネイティブ実行）を使ってください。** これが最も確実です。
+>
+> Expo Go ベースの補助スクリプト（`dev:ios` / `dev:ios:fresh` / `sim:reset`）も残してあります（`package.json` 参照）。Simulator で Expo Go をどうしても使う場合のみ利用してください。
 
 > Mac + iOS Simulator では **`--localhost` が最も安定**します。物理デバイスで確認する場合のみ `npm run dev`（同一Wi-Fi）または `npm run dev:tunnel` を使ってください。
 
@@ -50,18 +62,33 @@ npm run dev:ios   # ← 推奨。iOS Simulator を直接起動する
 lsof -i :8082        # 何か表示されれば Metro が 8082 で起動中
 ```
 
-何も表示されない場合は Metro が起動していません（= `Could not connect` の原因）。`npm run dev:ios` で起動してください。
+何も表示されない場合は Metro が起動していません（= `Could not connect` の原因）。
 
-## 接続できないとき（Could not connect to the server）— 復旧手順
+## Simulator で「Could not connect to the server」が出るとき
 
-`Could not connect to the server.` のほとんどは **Metro が起動していない／古い URL を掴んでいる**ことが原因です。次の順で復旧します。
+**まず `npm run ios`（ネイティブ実行）を使ってください。** Expo Go の接続キャッシュに依存しないため、この方式なら接続エラーは起きません。
 
-1. iOS Simulator の **Expo Go を完全終了**する（アプリスイッチャーから上スワイプ）
-2. ターミナルの **Metro を `Ctrl + C` で停止**する
-3. `npm run dev:clear` を実行する
-4. **iOS Simulator を開き直す**（`npm run dev:ios` なら自動で開く）
-5. それでもダメなら `npm run dev:tunnel` を試す
+```bash
+# Ctrl+C で起動中の Metro を止めてから
+npm run ios          # ネイティブ実行で iOS Simulator に直接インストール
+npm run ios:clean    # ビルドが壊れている疑いがあるとき
+```
 
+### それでもダメなとき（Simulator 自体を作り直す）
+
+```bash
+xcrun simctl shutdown booted && open -a Simulator   # Simulator を再起動
+npm run ios:clean                                    # ビルドキャッシュ無しで再実行
+```
+
+### 実機で Expo Go を使っていて接続できない場合（補助）
+
+1. 実機の **Expo Go を完全終了 → 再起動**
+2. ターミナルの **Metro を `Ctrl + C` で停止**
+3. `npm run dev:clear`（同一Wi-Fi）または `npm run dev:tunnel` で起動し直す
+
+> ※ Simulator で Expo Go をどうしても使う場合のみ、`npm run sim:reset`（Expo Go を終了＋アンインストール）→ `npm run dev:ios:fresh` も使えます。ただし **Simulator は `npm run ios` のネイティブ実行が推奨**です。
+>
 > デモ中は **Metro のターミナルを閉じない**でください。サーバーが動き続けていれば、アプリ内 **Cmd + R** のリロードで `Could not connect` にはなりません。
 
 ## Dev Menu（青い歯車）について
@@ -73,13 +100,24 @@ lsof -i :8082        # 何か表示されれば Metro が 8082 で起動中
 ## スクリプト
 
 ```bash
-npm run dev:ios     # 推奨: iOS Simulator を直接起動（8082固定）
-npm run dev         # 開発サーバー（QRコード表示・8082固定）
-npm run dev:clear   # キャッシュクリア起動
-npm run dev:tunnel  # トンネル起動
-npm run demo        # 本番に近いデモ起動
-npm run lint        # ESLint
-npm run typecheck   # tsc --noEmit
+# iOS Simulator（推奨・Expo Go 不要）
+npm run ios           # ネイティブ実行で iOS Simulator に直接インストール（8082固定）
+npm run ios:clean     # ビルドキャッシュ無しでネイティブ実行
+
+# 実機（Expo Go・補助）
+npm run dev           # 開発サーバー（QRコード表示・8082固定）
+npm run dev:clear     # キャッシュクリア起動
+npm run dev:tunnel    # トンネル起動
+
+# Expo Go を Simulator で使う場合のみ（補助）
+npm run dev:ios       # Expo Go で Simulator を直接起動
+npm run dev:ios:fresh # Expo Go を作り直して Simulator で開く
+npm run sim:reset     # Simulator の Expo Go を終了＋アンインストール
+
+# その他
+npm run demo          # 本番に近いデモ起動
+npm run lint          # ESLint
+npm run typecheck     # tsc --noEmit
 ```
 
 ## 画面一覧（Expo Router）
