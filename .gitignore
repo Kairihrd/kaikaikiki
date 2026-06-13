@@ -32,3 +32,23 @@ dist/
 build/
 out/
 *.tmp
+.next/
+
+# Expo / React Native
+.expo/
+.expo-shared/
+web-build/
+expo-env.d.ts
+*.orig.*
+ios/
+android/
+
+# Metro
+.metro-health-check*
+
+# Native debug
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
