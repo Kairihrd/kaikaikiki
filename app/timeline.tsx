@@ -111,7 +111,7 @@ export default function TimelineScreen() {
   const listRef = useRef<FlatList<TimelinePost>>(null);
   const { posts: userPosts } = usePosts();
   const { profile } = useProfile();
-  const { addLikeNotification, unreadCount, dmUnread } = useNotifications();
+  const { unreadCount, dmUnread } = useNotifications();
   const { isLiked, toggleLike } = useLikes();
   const { supports } = useSupport();
 
@@ -172,10 +172,11 @@ export default function TimelineScreen() {
       const nowLiked = toggleLike(id); // AsyncStorage に永続化
       if (nowLiked) {
         hapticLight(); // いいね時の軽い振動
-        addLikeNotification(); // 「いいねされた」疑似通知を追加
+        // 自分のいいね操作では自分の通知一覧に通知を追加しない。
+        // (ローカルMVPでは他端末へ通知できないため。投稿者宛の通知は将来 Supabase 側で実装)
       }
     },
-    [toggleLike, addLikeNotification],
+    [toggleLike],
   );
 
   // 各アイテムは画面高さぴったり。これで1画面1投稿にスナップする。
