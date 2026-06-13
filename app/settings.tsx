@@ -9,6 +9,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Bell,
@@ -17,7 +18,6 @@ import {
   Globe,
   Lock,
   LogOut,
-  Moon,
   UserCog,
   X,
 } from "lucide-react-native";
@@ -36,7 +36,6 @@ export default function SettingsScreen() {
   const { lang, setLang, t } = useLanguage();
   const { signOut } = useAuth();
   const [push, setPush] = useState(true);
-  const [darkMode, setDarkMode] = useState(true);
   const [langOpen, setLangOpen] = useState(false);
 
   return (
@@ -55,9 +54,7 @@ export default function SettingsScreen() {
               icon={<UserCog size={18} color={colors.cyan} />}
               label={t("settings.editProfileTitle")}
               chevron
-              onPress={() =>
-                Alert.alert(t("settings.editProfileTitle"), t("settings.editProfileMsg"))
-              }
+              onPress={() => router.push("/profile/edit")}
             />
             <Divider />
             <Row
@@ -84,12 +81,6 @@ export default function SettingsScreen() {
               icon={<Bell size={18} color={colors.cyan} />}
               label={t("settings.push")}
               right={<Switch value={push} onValueChange={setPush} />}
-            />
-            <Divider />
-            <Row
-              icon={<Moon size={18} color={colors.cyan} />}
-              label={t("settings.darkMode")}
-              right={<Switch value={darkMode} onValueChange={setDarkMode} />}
             />
           </GlassCard>
 

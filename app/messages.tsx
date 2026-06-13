@@ -36,11 +36,13 @@ export default function MessagesScreen() {
             <Text style={styles.title}>{t("header.messages")}</Text>
             <Text style={styles.sub}>{t("messages.subtitle")}</Text>
 
-            {/* 開発用: DMを受信(別画面に出てから戻ると未読バッジを確認できる) */}
-            <Pressable style={styles.devBtn} onPress={receiveDm}>
-              <Plus size={14} color={colors.textDim} />
-              <Text style={styles.devText}>{t("messages.devReceive")}</Text>
-            </Pressable>
+            {/* 開発用: DMを受信(本番UIでは非表示) */}
+            {__DEV__ ? (
+              <Pressable style={styles.devBtn} onPress={receiveDm}>
+                <Plus size={14} color={colors.textDim} />
+                <Text style={styles.devText}>{t("messages.devReceive")}</Text>
+              </Pressable>
+            ) : null}
           </View>
         </ScrollView>
       </SafeAreaView>

@@ -57,11 +57,13 @@ export default function NotificationsScreen() {
             </GlassCard>
           ))}
 
-          {/* 開発用: いいね通知を受信する */}
-          <Pressable style={styles.devBtn} onPress={addLikeNotification}>
-            <Plus size={14} color={colors.textDim} />
-            <Text style={styles.devText}>{t("notifications.devAddLike")}</Text>
-          </Pressable>
+          {/* 開発用: いいね通知を受信する(本番UIでは非表示) */}
+          {__DEV__ ? (
+            <Pressable style={styles.devBtn} onPress={addLikeNotification}>
+              <Plus size={14} color={colors.textDim} />
+              <Text style={styles.devText}>{t("notifications.devAddLike")}</Text>
+            </Pressable>
+          ) : null}
 
           <Text style={styles.note}>{t("notifications.note")}</Text>
         </ScrollView>

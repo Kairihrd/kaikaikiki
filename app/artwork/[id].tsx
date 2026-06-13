@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -9,8 +9,9 @@ import {
   TextInput,
   View,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Heart,
@@ -43,10 +44,28 @@ export default function ArtworkDetailScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const [liked, setLiked] = useState(false);
   const [supporting, setSupporting] = useState(false);
-  const [comments, setComments] = useState<Comment[]>(() =>
-    getCommentsForArtwork(artwork.id),
+  // 既定(モック)コメント + ユーザー追加コメント(作品IDごとに AsyncStorage 保存)。
+  const seedComments = useMemo(
+    () => getCommentsForArtwork(artwork.id),
+    [artwork.id],
   );
+  const [userComments, setUserComments] = useState<Comment[]>([]);
+  const comments = [...seedComments, ...userComments];
   const [draft, setDraft] = useState("");
+  const commentsKey = `senseed:comments:${artwork.id}`;
+
+  // 保存済みのユーザーコメントを復元(離脱して戻っても残る)。
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(commentsKey);
+        if (raw) setUserComments(JSON.parse(raw));
+        else setUserComments([]);
+      } catch {
+        setUserComments([]);
+      }
+    })();
+  }, [commentsKey]);
 
   const likeCount = artwork.likes + (liked ? 1 : 0);
 
@@ -69,7 +88,9 @@ export default function ArtworkDetailScreen() {
   const onSendComment = () => {
     const body = draft.trim();
     if (!body) return;
-    setComments((prev) => [...prev, { id: `me-${prev.length}`, handle: "you", body }]);
+    const next = [...userComments, { id: `me-${Date.now()}`, handle: "you", body }];
+    setUserComments(next);
+    AsyncStorage.setItem(commentsKey, JSON.stringify(next)).catch(() => {});
     setDraft("");
   };
 
@@ -114,7 +135,7 @@ export default function ArtworkDetailScreen() {
 
             <Pressable
               style={styles.msgButton}
-              onPress={() => Alert.alert("メッセージ", `${creator.name} さんにメッセージを送ります（準備中）`)}
+              onPress={() => router.push("/messages")}
             >
               <Text style={styles.msgText}>メッセージを送る</Text>
             </Pressable>

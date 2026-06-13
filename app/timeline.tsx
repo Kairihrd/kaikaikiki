@@ -29,7 +29,6 @@ import {
   Palette,
   PersonStanding,
   Play,
-  Search,
   Share2,
   Shirt,
   Sparkles,
@@ -89,7 +88,7 @@ export default function TimelineScreen() {
   const listRef = useRef<FlatList<TimelinePost>>(null);
   const { posts: userPosts } = usePosts();
   const { profile } = useProfile();
-  const { addLikeNotification } = useNotifications();
+  const { addLikeNotification, unreadCount, dmUnread } = useNotifications();
 
   // ユーザー自身の投稿を TimelinePost に変換(「おすすめ」の先頭に表示)。
   const userTimeline = useMemo<TimelinePost[]>(
@@ -203,12 +202,24 @@ export default function TimelineScreen() {
               />
             </Pressable>
             <View style={styles.topActions}>
-              <IconButton accessibilityLabel="検索">
-                <Search size={20} color={colors.text} />
-              </IconButton>
-              <IconButton accessibilityLabel="通知">
-                <Bell size={20} color={colors.text} />
-              </IconButton>
+              <View>
+                <IconButton
+                  accessibilityLabel="通知"
+                  onPress={() => router.push("/notifications")}
+                >
+                  <Bell size={20} color={colors.text} />
+                </IconButton>
+                {unreadCount > 0 ? <View style={styles.unreadBadge} /> : null}
+              </View>
+              <View>
+                <IconButton
+                  accessibilityLabel="メッセージ"
+                  onPress={() => router.push("/messages")}
+                >
+                  <MessageCircle size={20} color={colors.text} />
+                </IconButton>
+                {dmUnread > 0 ? <View style={styles.unreadBadge} /> : null}
+              </View>
             </View>
           </View>
 
@@ -584,6 +595,17 @@ const styles = StyleSheet.create({
   },
   logoImg: { width: 100, height: 36 },
   topActions: { flexDirection: "row", gap: 8 },
+  unreadBadge: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: colors.pink,
+    borderWidth: 1.5,
+    borderColor: colors.bg,
+  },
   tabs: { flexDirection: "row", gap: 8, paddingVertical: 12 },
   tab: { borderRadius: 999, paddingHorizontal: 18, paddingVertical: 6 },
   tabActive: { backgroundColor: colors.text },
