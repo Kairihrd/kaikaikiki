@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "senseed",
+    "name": "Senseed",
     "slug": "senseed",
     "scheme": "senseed",
     "version": "1.0.0",
@@ -10,6 +10,8 @@
     "backgroundColor": "#000000",
     "newArchEnabled": true,
     "ios": {
+      "bundleIdentifier": "com.senseed.app",
+      "buildNumber": "1",
       "supportsTablet": true
     },
     "android": {
