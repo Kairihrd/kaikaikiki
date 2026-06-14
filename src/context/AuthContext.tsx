@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(isSupabaseConfigured);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
+    if (!supabase) return; // 未設定時は何もしない(loading は初期 false)
     // 起動時に保存済みセッションを復元。
     supabase.auth.getSession().then(({ data }) => {
       setUser(toUser(data.session?.user ?? null));
@@ -84,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       configured: isSupabaseConfigured,
       signUp: async (email, password, handle, displayName) => {
-        if (!isSupabaseConfigured) return { ok: false, error: NOT_CONFIGURED };
+        if (!supabase) return { ok: false, error: NOT_CONFIGURED };
         const h = handle.trim().toLowerCase();
         // 事前に handle 重複を確認(unique 制約が最終ガード)。
         try {
@@ -108,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { ok: true };
       },
       signIn: async (email, password) => {
-        if (!isSupabaseConfigured) return { ok: false, error: NOT_CONFIGURED };
+        if (!supabase) return { ok: false, error: NOT_CONFIGURED };
         const { error } = await supabase.auth.signInWithPassword({
           email: email.trim(),
           password,
@@ -117,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { ok: true };
       },
       signOut: async () => {
-        await supabase.auth.signOut().catch(() => {});
+        if (supabase) await supabase.auth.signOut().catch(() => {});
         setUser(null);
       },
     }),
