@@ -20,6 +20,8 @@ import GradientButton from "@/components/GradientButton";
 import IconButton from "@/components/IconButton";
 import { CURRENT_THEME, GENRES } from "@/lib/mockData";
 import { usePosts, type PostTarget } from "@/context/PostsContext";
+import { useAuth } from "@/context/AuthContext";
+import { insertPost } from "@/lib/posts";
 import { hapticSuccess } from "@/lib/haptics";
 import { colors, radius } from "@/lib/theme";
 
@@ -63,6 +65,7 @@ export default function PostScreen() {
       ? MODE_CONFIG[mode]
       : MODE_CONFIG.timeline;
   const { addPost, hasPostedTo } = usePosts();
+  const { user } = useAuth();
   const themeName = cfg.target === "theme" ? CURRENT_THEME : undefined;
   const alreadyPosted = hasPostedTo(cfg.target, themeName);
 
@@ -87,17 +90,34 @@ export default function PostScreen() {
   };
 
   const doSubmit = async () => {
+    const finalTitle = title.trim() || "無題";
+    const finalCaption = description.trim();
+    const finalVideoUrl = isVideoWork ? videoUrl.trim() : undefined;
+    // ローカル(マイページ/ビルボード/テーマ反映用)に保存。
     await addPost({
       imageUri: imageUri ?? undefined,
-      title: title.trim() || "無題",
-      caption: description.trim(),
+      title: finalTitle,
+      caption: finalCaption,
       genre,
       target: cfg.target,
       theme: themeName,
       isVideoWork,
       // 動画作品のときだけ動画URLを保存(説明文とは別フィールド)。
-      videoUrl: isVideoWork ? videoUrl.trim() : undefined,
+      videoUrl: finalVideoUrl,
     });
+    // Supabase posts にも保存(全ユーザーのタイムラインに出る・投稿者=現在のユーザー)。
+    if (user) {
+      await insertPost(
+        {
+          title: finalTitle,
+          description: finalCaption,
+          category: genre,
+          imageUrl: imageUri ?? undefined,
+          videoUrl: finalVideoUrl,
+        },
+        user.id,
+      );
+    }
     hapticSuccess();
     Alert.alert("投稿しました", `${cfg.note}\nマイページにも反映されます。`, [
       { text: "OK", onPress: () => router.replace(cfg.dest) },
