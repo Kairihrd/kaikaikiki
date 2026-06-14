@@ -35,7 +35,6 @@ import {
 import ScreenGlow from "@/components/ScreenGlow";
 import BottomNav from "@/components/BottomNav";
 import IconButton from "@/components/IconButton";
-import Tag from "@/components/Tag";
 import {
   FEATURED_CREATOR,
   getArtworkById,
@@ -236,7 +235,7 @@ export default function TimelineScreen() {
         }
       />
 
-      {/* 上部固定オーバーレイ: ロゴ + 検索/通知 + タブ + Today's 100 */}
+      {/* 上部固定オーバーレイ: ロゴ + 検索/通知 + タブ */}
       <SafeAreaView edges={["top"]} style={styles.headerSafe} pointerEvents="box-none">
         <View style={styles.top} pointerEvents="box-none">
           <View style={styles.topRow}>
@@ -287,17 +286,6 @@ export default function TimelineScreen() {
                 </Text>
               </Pressable>
             ))}
-          </View>
-
-          <View style={styles.badgeWrap}>
-            <LinearGradient
-              colors={[colors.cyan, colors.purple]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.badge}
-            >
-              <Text style={styles.badgeText}>Today&apos;s 100</Text>
-            </LinearGradient>
           </View>
         </View>
       </SafeAreaView>
@@ -390,11 +378,6 @@ function PostCard({
         <Text style={styles.desc} numberOfLines={2}>
           {post.description}
         </Text>
-        <View style={styles.tagRow}>
-          {post.tags.map((t) => (
-            <Tag key={t} label={t} />
-          ))}
-        </View>
         <View style={styles.sound}>
           <Music size={14} color={colors.cyan} />
           <Text style={styles.soundText} numberOfLines={1}>
@@ -701,9 +684,6 @@ const styles = StyleSheet.create({
   tabInactive: { backgroundColor: "rgba(255,255,255,0.12)" },
   tabText: { color: colors.textDim, fontSize: 13, fontWeight: "600" },
   tabTextActive: { color: colors.bg },
-  badgeWrap: { flexDirection: "row" },
-  badge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
-  badgeText: { color: colors.text, fontSize: 12, fontWeight: "700" },
 
   // 右側アクション
   actions: { position: "absolute", right: 12, bottom: 190, alignItems: "center", gap: 18 },
@@ -728,7 +708,6 @@ const styles = StyleSheet.create({
   creatorLine: { color: colors.text, fontSize: 14, marginTop: 4 },
   handle: { color: colors.textDim },
   desc: { color: colors.textDim, fontSize: 13, marginTop: 8 },
-  tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
   sound: {
     flexDirection: "row",
     alignItems: "center",
