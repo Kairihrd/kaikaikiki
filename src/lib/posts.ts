@@ -82,6 +82,59 @@ export async function fetchTimelinePosts(): Promise<TimelinePost[] | null> {
   }
 }
 
+// クリエイタープロフィール(他ユーザー)。
+export interface SupaCreator {
+  id: string;
+  display_name: string | null;
+  handle: string | null;
+  bio: string | null;
+  location: string | null;
+  role: string | null;
+  avatar_url: string | null;
+}
+
+// 作品カード(クリエイタープロフィールのグリッド表示用)。
+export interface CreatorWork {
+  id: string;
+  title: string;
+  genre: string;
+  imageUrl: string;
+  isVideo: boolean;
+}
+
+// handle(@なし)から profiles を1件取得。未設定/不在は null。
+export async function fetchProfileByHandle(
+  handle: string,
+): Promise<SupaCreator | null> {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id,display_name,handle,bio,location,role,avatar_url")
+      .eq("handle", handle)
+      .maybeSingle();
+    if (error || !data) return null;
+    return data as unknown as SupaCreator;
+  } catch {
+    return null;
+  }
+}
+
+// author_id の投稿を作品カードとして取得(新着順)。未設定/失敗は null。
+export async function fetchCreatorWorks(
+  userId: string,
+): Promise<CreatorWork[] | null> {
+  const rows = await fetchUserPosts(userId);
+  if (rows === null) return null;
+  return rows.map((p) => ({
+    id: p.id,
+    title: p.title,
+    genre: p.category ?? "その他",
+    imageUrl: p.image_url ?? DEFAULT_ARTWORK_IMAGE,
+    isVideo: !!p.video_url,
+  }));
+}
+
 // 自分の投稿を新着順で取得(マイページ用・任意)。
 export async function fetchUserPosts(
   userId: string,
