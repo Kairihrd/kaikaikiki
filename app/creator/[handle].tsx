@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
@@ -23,6 +24,12 @@ import {
   type StatusKind,
   type StatusLevel,
 } from "@/lib/status";
+import {
+  fetchProfileByHandle,
+  fetchCreatorWorks,
+  type SupaCreator,
+  type CreatorWork,
+} from "@/lib/posts";
 import { usePosts } from "@/context/PostsContext";
 import { useProfile } from "@/context/ProfileContext";
 import { useSupport } from "@/context/SupportContext";
@@ -35,14 +42,36 @@ import { colors, gradient, radius } from "@/lib/theme";
 export default function CreatorScreen() {
   const { handle } = useLocalSearchParams<{ handle: string }>();
   const decoded = decodeURIComponent(handle ?? "");
+  const rawHandle = decoded.replace(/^@/, ""); // profiles は @ なしで保存
   const { posts: myPosts, featuredPost } = usePosts();
   const { profile } = useProfile();
   const { supports } = useSupport();
 
-  const baseCreator = getCreatorByHandle(decoded);
-  // MVP は単一アイデンティティのため、自分の投稿ハンドル=FEATURED_CREATOR.handle を「自分」と判定。
-  const isMe = decoded === FEATURED_CREATOR.handle;
+  // Supabase の相手プロフィール(見つかれば最優先。カナタ固定にはフォールバックしない)。
+  const [supa, setSupa] = useState<SupaCreator | null>(null);
+  const [supaWorks, setSupaWorks] = useState<CreatorWork[]>([]);
 
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const p = await fetchProfileByHandle(rawHandle);
+      if (!alive) return;
+      setSupa(p);
+      if (p) {
+        const w = await fetchCreatorWorks(p.id);
+        if (alive) setSupaWorks(w ?? []);
+      } else if (alive) {
+        setSupaWorks([]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [rawHandle]);
+
+  // --- モック/ローカル フォールバック(Supabase に居ない作者用) ---
+  const baseCreator = getCreatorByHandle(decoded);
+  const isMe = decoded === FEATURED_CREATOR.handle;
   const author = {
     name: isMe ? profile.name ?? baseCreator.name : baseCreator.name,
     handle: decoded,
@@ -50,22 +79,46 @@ export default function CreatorScreen() {
       ? profile.avatarUri ?? baseCreator.avatarUrl
       : baseCreator.avatarUrl,
   };
-  const bio = isMe ? profile.bio ?? baseCreator.bio : baseCreator.bio;
+  const mockWorks: CreatorWork[] = [
+    ...(isMe ? myPosts.map((p) => userPostToArtwork(p, author)) : []),
+    ...getTodaysArtworks().filter((a) => a.creatorHandle === decoded),
+  ].map((a) => ({
+    id: a.id,
+    title: a.title,
+    genre: a.genre,
+    imageUrl: a.imageUrl,
+    isVideo: a.isVideo,
+  }));
 
-  // 過去の投稿(自分の投稿 + mock 作品プールからハンドル一致)。
-  const mockWorks = getTodaysArtworks().filter((a) => a.creatorHandle === decoded);
-  const myWorks = isMe ? myPosts.map((p) => userPostToArtwork(p, author)) : [];
-  const works = [...myWorks, ...mockWorks];
+  // --- 表示用(Supabase 優先) ---
+  const dispName = supa ? supa.display_name || supa.handle || "ユーザー" : author.name;
+  const dispHandle = supa ? (supa.handle ? `@${supa.handle}` : "") : author.handle;
+  const dispAvatar = supa
+    ? supa.avatar_url ||
+      `https://picsum.photos/seed/senseed-avatar-${supa.handle ?? supa.id}/200/200`
+    : author.avatarUrl;
+  const dispBio = supa ? supa.bio : isMe ? profile.bio ?? baseCreator.bio : baseCreator.bio;
+  const dispLocation = supa ? supa.location : baseCreator.location;
+  const dispRole = supa ? supa.role : baseCreator.role;
+  const works: CreatorWork[] = supa ? supaWorks : mockWorks;
 
-  // 自信作 / 代表作: 自分=featuredPost(無ければ先頭)、他人=先頭作品。
-  const featured = isMe
-    ? featuredPost
-      ? userPostToArtwork(featuredPost, author)
-      : works[0]
-    : works[0];
+  // 自信作/代表作: mock の自分は featuredPost 優先、それ以外は先頭。
+  const mockFeatured =
+    !supa && isMe && featuredPost ? userPostToArtwork(featuredPost, author) : null;
+  const featured: CreatorWork | null = supa
+    ? supaWorks[0] ?? null
+    : mockFeatured
+      ? {
+          id: mockFeatured.id,
+          title: mockFeatured.title,
+          genre: mockFeatured.genre,
+          imageUrl: mockFeatured.imageUrl,
+          isVideo: mockFeatured.isVideo,
+        }
+      : works[0] ?? null;
 
-  // Senseed Status: 表現=投稿数(実値)、発掘=自分のみサポート数(他人は不明=0)。
-  const status = getSenseedStatus(works.length, isMe ? supports.length : 0);
+  // Senseed Status: 表現=投稿数、発掘=自分のみサポート数(他人は不明=0)。
+  const status = getSenseedStatus(works.length, supa ? 0 : isMe ? supports.length : 0);
 
   return (
     <View style={styles.root}>
@@ -80,16 +133,16 @@ export default function CreatorScreen() {
           {/* ヘッダー */}
           <View style={styles.header}>
             <LinearGradient colors={gradient.brand} style={styles.avatarRing}>
-              <Image source={{ uri: author.avatarUrl }} style={styles.avatar} contentFit="cover" />
+              <Image source={{ uri: dispAvatar }} style={styles.avatar} contentFit="cover" />
             </LinearGradient>
-            <Text style={styles.name}>{author.name}</Text>
-            <Text style={styles.handle}>{author.handle}</Text>
-            {baseCreator.location || baseCreator.role ? (
+            <Text style={styles.name}>{dispName}</Text>
+            {dispHandle ? <Text style={styles.handle}>{dispHandle}</Text> : null}
+            {dispLocation || dispRole ? (
               <Text style={styles.meta}>
-                {[baseCreator.location, baseCreator.role].filter(Boolean).join("・")}
+                {[dispLocation, dispRole].filter(Boolean).join("・")}
               </Text>
             ) : null}
-            {bio ? <Text style={styles.bio}>{bio}</Text> : null}
+            {dispBio ? <Text style={styles.bio}>{dispBio}</Text> : null}
           </View>
 
           {/* Senseed Status */}
@@ -102,7 +155,7 @@ export default function CreatorScreen() {
           {/* 自信作 / 代表作 */}
           {featured ? (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{isMe ? "自信作" : "代表作"}</Text>
+              <Text style={styles.sectionTitle}>{!supa && isMe ? "自信作" : "代表作"}</Text>
               <Pressable onPress={() => router.push(`/artwork/${featured.id}`)}>
                 <GlassCard style={styles.featured}>
                   <Image source={{ uri: featured.imageUrl }} style={styles.featuredImage} contentFit="cover" />
@@ -128,7 +181,7 @@ export default function CreatorScreen() {
             ) : (
               <View style={styles.grid}>
                 {works.map((a) => {
-                  const meta = genreMeta(a.genre);
+                  const meta = genreMeta(a.genre as never);
                   const GenreIcon = meta.Icon;
                   return (
                     <Pressable
