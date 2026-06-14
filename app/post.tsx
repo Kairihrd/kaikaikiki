@@ -21,7 +21,7 @@ import IconButton from "@/components/IconButton";
 import { CURRENT_THEME, GENRES } from "@/lib/mockData";
 import { usePosts, type PostTarget } from "@/context/PostsContext";
 import { useAuth } from "@/context/AuthContext";
-import { insertPost } from "@/lib/posts";
+import { insertPost, uploadPostImage } from "@/lib/posts";
 import { hapticSuccess } from "@/lib/haptics";
 import { colors, radius } from "@/lib/theme";
 
@@ -93,9 +93,26 @@ export default function PostScreen() {
     const finalTitle = title.trim() || "無題";
     const finalCaption = description.trim();
     const finalVideoUrl = isVideoWork ? videoUrl.trim() : undefined;
+
+    // 画像があれば先に Supabase Storage へアップロードし、公開URLを得る。
+    // 失敗したら投稿自体を中止(他端末で読めないローカルURIを保存しないため)。
+    let publicImageUrl: string | undefined;
+    if (user && imageUri) {
+      const up = await uploadPostImage(imageUri, user.id);
+      if (up.error || !up.url) {
+        Alert.alert(
+          "画像のアップロードに失敗しました",
+          `投稿を中止しました。通信状況を確認して再度お試しください。\n${up.error ?? ""}`,
+        );
+        return;
+      }
+      publicImageUrl = up.url;
+    }
+
     // ローカル(マイページ/ビルボード/テーマ反映用)に保存。
+    // 公開URLがあればそれを使う(なければ端末内URIで自分の端末用に表示)。
     await addPost({
-      imageUri: imageUri ?? undefined,
+      imageUri: publicImageUrl ?? imageUri ?? undefined,
       title: finalTitle,
       caption: finalCaption,
       genre,
@@ -106,6 +123,7 @@ export default function PostScreen() {
       videoUrl: finalVideoUrl,
     });
     // Supabase posts にも保存(全ユーザーのタイムラインに出る・投稿者=現在のユーザー)。
+    // image_url には公開URLのみ保存(ローカルURIは入れない)。
     let dbError: string | undefined;
     if (user) {
       const res = await insertPost(
@@ -113,7 +131,7 @@ export default function PostScreen() {
           title: finalTitle,
           description: finalCaption,
           category: genre,
-          imageUrl: imageUri ?? undefined,
+          imageUrl: publicImageUrl,
           videoUrl: finalVideoUrl,
         },
         user.id,

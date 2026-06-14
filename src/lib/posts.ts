@@ -34,6 +34,49 @@ interface ProfileRow {
   avatar_url: string | null;
 }
 
+// 選択した画像(ローカルURI)を Supabase Storage(post-images)にアップロードし、
+// 公開URLを返す。失敗時は error を返す(呼び出し側で投稿失敗として扱う)。
+// パス: {userId}/{timestamp}.{ext}(Storage RLS の自分フォルダ条件に一致)。
+export async function uploadPostImage(
+  uri: string,
+  userId: string,
+): Promise<{ url?: string; error?: string }> {
+  if (!supabase) return { error: "Supabase未設定" };
+  try {
+    const res = await fetch(uri);
+    const arrayBuffer = await res.arrayBuffer();
+    if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+      return { error: "画像データを読み込めませんでした" };
+    }
+    const ext = (uri.split("?")[0].split(".").pop() || "jpg").toLowerCase();
+    const safeExt = ["jpg", "jpeg", "png", "webp", "heic"].includes(ext)
+      ? ext
+      : "jpg";
+    const contentType =
+      safeExt === "png"
+        ? "image/png"
+        : safeExt === "webp"
+          ? "image/webp"
+          : safeExt === "heic"
+            ? "image/heic"
+            : "image/jpeg";
+    const path = `${userId}/${Date.now()}.${safeExt}`;
+    const { error: upErr } = await supabase.storage
+      .from("post-images")
+      .upload(path, arrayBuffer, { contentType, upsert: true });
+    if (upErr) {
+      if (__DEV__) console.warn("[posts] image upload ERROR:", upErr.message);
+      return { error: upErr.message };
+    }
+    const { data } = supabase.storage.from("post-images").getPublicUrl(path);
+    if (__DEV__) console.warn("[posts] image uploaded:", data.publicUrl);
+    return { url: data.publicUrl };
+  } catch (e) {
+    if (__DEV__) console.warn("[posts] image upload EXCEPTION:", String(e));
+    return { error: String(e) };
+  }
+}
+
 // 投稿を posts テーブルに作成。author_id は現在のログインユーザー。
 export async function insertPost(
   input: NewPostInput,
