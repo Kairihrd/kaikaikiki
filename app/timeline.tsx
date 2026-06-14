@@ -416,8 +416,17 @@ function PostCard({
 // 画像系は写真、それ以外はグラデーション + ジャンル別の演出で表現する。
 // ---------------------------------------------------------------------------
 function PostMedia({ post }: { post: TimelinePost }) {
-  // 画像が無い投稿でもデフォルトのアート画像を使い、必ず画像をメイン面に出す。
-  const uri = post.imageUrl ?? DEFAULT_TIMELINE_IMAGE;
+  // image_url にローカル端末URI(file:// / ph:// / assets-library://)が入っていると
+  // 別端末では読めず真っ黒になる。http(s) のみ実画像として表示し、それ以外や
+  // 読み込み失敗時はデフォルトのアート画像にフォールバックする(黒画面にしない)。
+  const raw = post.imageUrl;
+  const isHttp = !!raw && /^https?:\/\//i.test(raw);
+  const [failed, setFailed] = useState(false);
+  const showReal = isHttp && !failed;
+  const uri = showReal ? (raw as string) : DEFAULT_TIMELINE_IMAGE;
+  // ローカルURIや読み込み失敗 → 「この端末でのみ閲覧可」ヒントを出す。
+  const localOnly = (!!raw && !isHttp) || failed;
+
   return (
     <View style={StyleSheet.absoluteFill}>
       {/* 背景: ぼかした同じ画像 + 黒で自然に埋め、作品は contain で切れず表示。 */}
@@ -434,6 +443,7 @@ function PostMedia({ post }: { post: TimelinePost }) {
         style={StyleSheet.absoluteFill}
         contentFit="contain"
         transition={250}
+        onError={() => setFailed(true)}
       />
 
       {/* 可読性のための上下グラデーション */}
@@ -442,6 +452,15 @@ function PostMedia({ post }: { post: TimelinePost }) {
         locations={[0, 0.4, 1]}
         style={StyleSheet.absoluteFill}
       />
+
+      {/* ローカル画像で他端末に出せない場合の控えめなヒント */}
+      {localOnly ? (
+        <View style={styles.localHint} pointerEvents="none">
+          <Text style={styles.localHintText}>
+            画像プレビューはこの端末のみ
+          </Text>
+        </View>
+      ) : null}
 
       {/* ジャンル別の演出(中央) */}
       <Decoration post={post} />
@@ -678,6 +697,18 @@ const styles = StyleSheet.create({
   // 「サポート中」が空のときの表示
   empty: { alignItems: "center", justifyContent: "center", paddingHorizontal: 40 },
   emptyText: { color: colors.textDim, fontSize: 14, textAlign: "center", lineHeight: 22 },
+
+  // ローカル画像(他端末で読めない)のヒント
+  localHint: {
+    position: "absolute",
+    top: 150,
+    alignSelf: "center",
+    backgroundColor: "rgba(0,0,0,0.45)",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  localHintText: { color: colors.text, fontSize: 11, fontWeight: "600" },
 
   // ヘッダー(固定オーバーレイ)
   headerSafe: { position: "absolute", top: 0, left: 0, right: 0 },
