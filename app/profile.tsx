@@ -19,7 +19,7 @@ import BottomNav from "@/components/BottomNav";
 import GlassCard from "@/components/GlassCard";
 import StatCard from "@/components/StatCard";
 import StatusIcon from "@/components/StatusIcon";
-import { DEFAULT_ARTWORK_IMAGE, FEATURED_CREATOR } from "@/lib/mockData";
+import { DEFAULT_ARTWORK_IMAGE } from "@/lib/mockData";
 import {
   getSenseedStatus,
   statusProgress,
@@ -43,19 +43,21 @@ export default function ProfileScreen() {
   const { t } = useLanguage();
   const { profile } = useProfile();
   const { signOut } = useAuth();
-  const me = FEATURED_CREATOR;
 
   const confirmLogout = () =>
     Alert.alert(t("auth.logout"), t("auth.logoutConfirm"), [
       { text: "キャンセル", style: "cancel" },
       { text: t("auth.logout"), style: "destructive", onPress: () => signOut() },
     ]);
-  // 保存済みプロフィールがあれば優先。無ければ i18n / mock の既定値。
-  const displayName = profile.name ?? t("profile.name");
-  const displayBio = profile.bio ?? t("profile.bio");
+  // ログイン中ユーザーの profiles を表示。未設定でも固定の「カナタ」は出さない。
+  const displayName = profile.name ?? profile.handle ?? "ユーザー";
+  const displayBio = profile.bio ?? "";
+  // アバター未設定時は handle 由来のニュートラルなプレースホルダー(カナタ画像は使わない)。
   const avatarSource = profile.avatarUri
     ? { uri: profile.avatarUri }
-    : { uri: me.avatarUrl };
+    : {
+        uri: `https://picsum.photos/seed/senseed-avatar-${profile.handle ?? "user"}/200/200`,
+      };
   // マイページには「自分が投稿した作品」だけを表示する。
   const { posts, featuredPost, setFeatured } = usePosts();
   const { supports } = useSupport();
@@ -83,11 +85,10 @@ export default function ProfileScreen() {
             <View style={styles.nameRow}>
               <Text style={styles.name}>{displayName}</Text>
             </View>
-            <Text style={styles.handle}>{me.handle}</Text>
-            <Text style={styles.bio}>{displayBio}</Text>
-            <Text style={styles.meta}>
-              {t("profile.age19")}・{t("profile.tokyo")}　{t("profile.photographer")} / {t("profile.student")}
-            </Text>
+            {profile.handle ? (
+              <Text style={styles.handle}>@{profile.handle}</Text>
+            ) : null}
+            {displayBio ? <Text style={styles.bio}>{displayBio}</Text> : null}
             <Pressable
               style={styles.editButton}
               onPress={() => router.push("/profile/edit")}
