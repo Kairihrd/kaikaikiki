@@ -45,7 +45,7 @@ import { colors, radius } from "@/lib/theme";
 
 // 4. 作品詳細
 export default function ArtworkDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, focus } = useLocalSearchParams<{ id: string; focus?: string }>();
   const { posts } = usePosts();
   const { profile } = useProfile();
   // モック作品が無ければ、自分の投稿(UserPost)を作品として表示する。
@@ -64,6 +64,7 @@ export default function ArtworkDetailScreen() {
   const artworkId = artwork?.id ?? "";
 
   const scrollRef = useRef<ScrollView>(null);
+  const commentsY = useRef(0); // コメント欄の Y 位置(focus=comments でここへスクロール)
   const { isLiked, toggleLike } = useLikes();
   const { isSupported, toggleSupport } = useSupport();
   const liked = isLiked(artworkId);
@@ -90,6 +91,19 @@ export default function ArtworkDetailScreen() {
       }
     })();
   }, [commentsKey, artworkId]);
+
+  // タイムラインのコメントアイコンから来た場合(focus=comments)はコメント欄へスクロール。
+  useEffect(() => {
+    if (focus !== "comments" || !artworkId) return;
+    const t = setTimeout(() => {
+      if (commentsY.current > 0) {
+        scrollRef.current?.scrollTo({ y: commentsY.current, animated: true });
+      } else {
+        scrollRef.current?.scrollToEnd({ animated: true });
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [focus, artworkId]);
 
   // 未解決ID(存在しない作品 / ph-* など): 誤った作品を見せず、空状態で戻れるようにする。
   if (!artwork || !creator) {
@@ -259,7 +273,11 @@ export default function ArtworkDetailScreen() {
           </GlassCard>
 
           {/* コメント欄 */}
-          <View>
+          <View
+            onLayout={(e) => {
+              commentsY.current = e.nativeEvent.layout.y;
+            }}
+          >
             <Text style={styles.commentHeading}>コメント {comments.length}</Text>
             <View style={styles.commentList}>
               {comments.map((c) => (
