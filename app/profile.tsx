@@ -18,6 +18,7 @@ import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import GlassCard from "@/components/GlassCard";
 import StatCard from "@/components/StatCard";
+import StatusIcon from "@/components/StatusIcon";
 import { DEFAULT_ARTWORK_IMAGE, FEATURED_CREATOR } from "@/lib/mockData";
 import {
   getSenseedStatus,
@@ -287,9 +288,9 @@ function MenuRow({
   );
 }
 
-const STATUS_META: Record<StatusKind, { emoji: string; label: string }> = {
-  expression: { emoji: "🌱", label: "表現ステータス" },
-  discovery: { emoji: "🔍", label: "発掘ステータス" },
+const STATUS_META: Record<StatusKind, { label: string }> = {
+  expression: { label: "表現者ステータス" },
+  discovery: { label: "発掘者ステータス" },
 };
 
 // Senseed Status の1カード(画像 + レベル + 進捗バー + 現在値/次の目標 + 一言)。
@@ -308,9 +309,10 @@ function StatusCard({
     <GlassCard style={styles.statusCard}>
       <Image source={level.image} style={styles.statusImage} contentFit="cover" />
       <View style={styles.statusBody}>
-        <Text style={styles.statusKind}>
-          {meta.emoji} {meta.label}
-        </Text>
+        <View style={styles.statusKindRow}>
+          <StatusIcon kind={kind} size={20} />
+          <Text style={styles.statusKind}>{meta.label}</Text>
+        </View>
         <Text style={styles.statusLevel}>
           Lv.{level.level} {level.name}
         </Text>
@@ -349,6 +351,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statusBody: { flex: 1, gap: 5 },
+  statusKindRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   statusKind: { color: colors.text, fontSize: 13, fontWeight: "700" },
   statusLevel: { color: "#86efac", fontSize: 15, fontWeight: "800" },
   statusBarTrack: {
