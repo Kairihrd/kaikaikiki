@@ -80,18 +80,22 @@ const GENRE_ICON: Record<TimelineMedia, React.ComponentType<{ size?: number; col
   dance: PersonStanding,
 };
 
-// 投稿カードから作品詳細へ安全に遷移する。
-//  1) 自分の投稿(me-*) or 実在作品ID → そのまま /artwork/[id]
-//  2) ハンドルから実在作品を解決 → /artwork/[id]
-//  3) 解決できなければ作者プロフィールへ(誤作品へ飛ばさない/無反応にしない)
-function openArtwork(post: TimelinePost) {
-  if (post.id.startsWith("me-") || getArtworkById(post.id)) {
-    router.push(`/artwork/${post.id}`);
-    return;
-  }
+// 投稿カードに対応する「実在作品ID」を解決する。
+//  1) 自分の投稿(me-*) or 実在作品ID → そのID
+//  2) ハンドルから実在作品を解決 → そのID
+//  3) 解決できなければ null
+function resolveArtworkId(post: TimelinePost): string | null {
+  if (post.id.startsWith("me-") || getArtworkById(post.id)) return post.id;
   const art = getTodaysArtworks().find((a) => a.creatorHandle === post.username);
-  if (art) {
-    router.push(`/artwork/${art.id}`);
+  return art?.id ?? null;
+}
+
+// 作品詳細へ遷移。focus="comments" でコメント欄へスクロールさせる。
+// 解決できない場合は作者プロフィールへ(誤作品へ飛ばさない/無反応にしない)。
+function openArtwork(post: TimelinePost, focus?: "comments") {
+  const id = resolveArtworkId(post);
+  if (id) {
+    router.push(focus ? `/artwork/${id}?focus=${focus}` : `/artwork/${id}`);
     return;
   }
   if (post.username) router.push(`/creator/${encodeURIComponent(post.username)}`);
@@ -357,11 +361,11 @@ function PostCard({
           label={formatCount(likeCount)}
           onPress={onLike}
         />
-        {/* コメント → 作品詳細(コメント欄) */}
+        {/* コメント → 作品詳細のコメント欄へスクロール */}
         <ActionButton
           icon={<MessageCircle size={26} color={colors.text} />}
           label={formatCount(post.comments)}
-          onPress={() => openArtwork(post)}
+          onPress={() => openArtwork(post, "comments")}
         />
         <ActionButton
           icon={<Share2 size={26} color={colors.text} />}
