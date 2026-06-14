@@ -39,7 +39,7 @@ export async function insertPost(
   input: NewPostInput,
   userId: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  if (!supabase) return { ok: false, error: "Supabase未設定" };
+  if (!supabase) return { ok: false, error: "Supabase未設定（.env / EXPO_PUBLIC_*）" };
   const { error } = await supabase.from("posts").insert({
     author_id: userId,
     title: input.title,
@@ -48,36 +48,51 @@ export async function insertPost(
     image_url: input.imageUrl ?? null,
     video_url: input.videoUrl ?? null,
   } as never);
+  if (__DEV__) {
+    console.warn(
+      `[posts] insert ${error ? "ERROR: " + error.message : "OK"} (author_id=${userId})`,
+    );
+  }
   return error ? { ok: false, error: error.message } : { ok: true };
 }
 
 // 全ユーザーのタイムライン投稿を新着順で取得し、投稿者プロフィールを別取得で結合する。
 // 未設定/失敗時は null(呼び出し側はモックへフォールバック)。
 export async function fetchTimelinePosts(): Promise<TimelinePost[] | null> {
-  if (!supabase) return null;
+  if (!supabase) {
+    if (__DEV__) console.warn("[posts] fetchTimeline: Supabase未設定 → モックへ");
+    return null;
+  }
   try {
     const { data, error } = await supabase
       .from("posts")
       .select("id,author_id,title,description,category,image_url,video_url,created_at")
       .order("created_at", { ascending: false })
       .limit(100);
-    if (error || !data) return null;
-    const rows = data as unknown as DbPostRow[];
+    // posts 取得自体が失敗 → null(フォールバック)。空配列は成功(0件)として扱う。
+    if (error) {
+      if (__DEV__) console.warn("[posts] fetchTimeline posts ERROR:", error.message);
+      return null;
+    }
+    const rows = (data ?? []) as unknown as DbPostRow[];
+    if (__DEV__) console.warn(`[posts] fetchTimeline OK: ${rows.length}件`);
 
-    // 投稿者プロフィールをまとめて取得(FK埋め込みに依存しない別取得)。
+    // 投稿者プロフィールをまとめて取得(失敗しても投稿は表示する=非致命)。
     const ids = [...new Set(rows.map((r) => r.author_id))];
     const profileMap = new Map<string, ProfileRow>();
     if (ids.length > 0) {
-      const { data: profs } = await supabase
+      const { data: profs, error: pErr } = await supabase
         .from("profiles")
         .select("id,display_name,handle,avatar_url")
         .in("id", ids);
+      if (__DEV__ && pErr) console.warn("[posts] profiles fetch ERROR (非致命):", pErr.message);
       ((profs ?? []) as unknown as ProfileRow[]).forEach((p) =>
         profileMap.set(p.id, p),
       );
     }
     return rows.map((r) => toTimelinePost(r, profileMap.get(r.author_id)));
-  } catch {
+  } catch (e) {
+    if (__DEV__) console.warn("[posts] fetchTimeline EXCEPTION:", String(e));
     return null;
   }
 }

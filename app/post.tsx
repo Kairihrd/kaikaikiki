@@ -106,8 +106,9 @@ export default function PostScreen() {
       videoUrl: finalVideoUrl,
     });
     // Supabase posts にも保存(全ユーザーのタイムラインに出る・投稿者=現在のユーザー)。
+    let dbError: string | undefined;
     if (user) {
-      await insertPost(
+      const res = await insertPost(
         {
           title: finalTitle,
           description: finalCaption,
@@ -117,8 +118,21 @@ export default function PostScreen() {
         },
         user.id,
       );
+      if (!res.ok) dbError = res.error;
+    } else {
+      dbError = "ログインしていないため、他のユーザーには表示されません。";
+      if (__DEV__) console.warn("[post] no auth user → DB insert skipped");
     }
     hapticSuccess();
+    if (dbError) {
+      // サーバー保存に失敗 → 端末内には保存済みだが、友達のタイムラインには出ない旨を明示。
+      Alert.alert(
+        "投稿の保存に失敗しました",
+        `端末内には保存しましたが、サーバーへの保存に失敗したため他のユーザーには表示されません。\n\n原因: ${dbError}`,
+        [{ text: "OK", onPress: () => router.replace(cfg.dest) }],
+      );
+      return;
+    }
     Alert.alert("投稿しました", `${cfg.note}\nマイページにも反映されます。`, [
       { text: "OK", onPress: () => router.replace(cfg.dest) },
     ]);
