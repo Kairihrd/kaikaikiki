@@ -8,6 +8,7 @@ import ScreenGlow from "@/components/ScreenGlow";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import GlassCard from "@/components/GlassCard";
+import StatusIcon from "@/components/StatusIcon";
 import {
   FEATURED_CREATOR,
   getCreatorByHandle,
@@ -157,9 +158,9 @@ export default function CreatorScreen() {
   );
 }
 
-const STATUS_META: Record<StatusKind, { emoji: string; label: string }> = {
-  expression: { emoji: "🌱", label: "表現" },
-  discovery: { emoji: "🔍", label: "発掘" },
+const STATUS_META: Record<StatusKind, { label: string }> = {
+  expression: { label: "表現者ステータス" },
+  discovery: { label: "発掘者ステータス" },
 };
 
 function StatusRow({
@@ -177,7 +178,10 @@ function StatusRow({
     <GlassCard style={styles.statusCard}>
       <Image source={level.image} style={styles.statusImg} contentFit="cover" />
       <View style={styles.statusBody}>
-        <Text style={styles.statusKind}>{meta.emoji} {meta.label}ステータス</Text>
+        <View style={styles.statusKindRow}>
+          <StatusIcon kind={kind} size={20} />
+          <Text style={styles.statusKind}>{meta.label}</Text>
+        </View>
         <Text style={styles.statusLevel}>Lv.{level.level} {level.name}</Text>
         <View style={styles.barTrack}>
           <View style={[styles.barFill, { width: `${Math.round(prog.ratio * 100)}%` }]} />
@@ -218,6 +222,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statusBody: { flex: 1, gap: 4 },
+  statusKindRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   statusKind: { color: colors.text, fontSize: 13, fontWeight: "700" },
   statusLevel: { color: "#86efac", fontSize: 15, fontWeight: "800" },
   barTrack: {
