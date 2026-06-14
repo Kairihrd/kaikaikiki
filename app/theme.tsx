@@ -1,13 +1,12 @@
 import { useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Stack } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { Sparkles, Star, Users } from "lucide-react-native";
+import { Sparkles } from "lucide-react-native";
 import ScreenGlow from "@/components/ScreenGlow";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import BillboardMosaic from "@/components/BillboardMosaic";
-import StatCard from "@/components/StatCard";
 import Countdown from "@/components/Countdown";
 import {
   CURRENT_THEME,
@@ -22,7 +21,7 @@ import { userPostToArtwork } from "@/lib/userPost";
 import { colors, radius } from "@/lib/theme";
 
 // 2. テーマビルボード。ビルボード配下のサブ画面。
-// テーマ名/説明は backend の月間テーマ(API)に接続。未接続時は mock「境界」。
+// 通常ビルボード(index)と同じ「画面内固定・全幅」のレイアウトにする(縦スクロールしない)。
 export default function ThemeScreen() {
   const { t } = useLanguage();
   const { posts } = usePosts();
@@ -71,77 +70,57 @@ export default function ThemeScreen() {
 
   return (
     <View style={styles.root}>
+      {/* 通常ビルボードと同様、パン優先で iOS の横スワイプ戻りを無効化(戻るはヘッダーの戻るボタン) */}
+      <Stack.Screen options={{ gestureEnabled: false }} />
       <ScreenGlow />
       <SafeAreaView edges={["top"]} style={styles.safe}>
         <AppHeader subtitle={t("header.themeBillboard")} showBack />
 
-        <ScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* テーマ見出し(青い光・星) */}
-          <LinearGradient
-            colors={["rgba(59,130,246,0.25)", "rgba(168,85,247,0.12)", "transparent"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.banner}
-          >
-            <View style={styles.starWrap}>
-              <Star size={26} color={colors.cyan} />
-            </View>
-            <Text style={styles.title}>{t("theme.themePrefix")}：{displayTheme}</Text>
-            <Text style={styles.desc}>{theme.description}</Text>
-            <View style={styles.remain}>
-              <Text style={styles.remainDim}>残り</Text>
-              <Text style={styles.remainStrong}>12日</Text>
-              <Countdown
-                initialSeconds={8 * 3600 + 34 * 60 + 56}
-                style={styles.remainStrong}
-              />
-            </View>
-          </LinearGradient>
-
-          {/* 情報カード */}
-          <View style={styles.stats}>
-            <StatCard
-              style={styles.statItem}
-              value="824"
-              label={t("theme.participatingLabel")}
-              icon={<Sparkles size={16} color={colors.cyan} />}
-            />
-            <StatCard
-              style={styles.statItem}
-              value={t("theme.creators")}
-              label={t("theme.creatorsDesc")}
-              icon={<Users size={16} color={colors.cyan} />}
+        {/* コンパクトなテーマ情報バー(通常ビルボードの topBar に揃える) */}
+        <View style={styles.topBar}>
+          <View style={styles.topInfo}>
+            <Text style={styles.kicker}>{t("theme.themePrefix")}</Text>
+            <Text style={styles.themeTitle} numberOfLines={1}>
+              {displayTheme}
+            </Text>
+            {theme.description ? (
+              <Text style={styles.themeDesc} numberOfLines={1}>
+                {theme.description}
+              </Text>
+            ) : null}
+          </View>
+          <View style={styles.remainChip}>
+            <Text style={styles.remainDim}>残り</Text>
+            <Countdown
+              initialSeconds={8 * 3600 + 34 * 60 + 56}
+              style={styles.remainStrong}
             />
           </View>
+        </View>
 
-          {/* 開発確認用: その月のテーマをAI生成(本番は月初cron/管理者専用の想定)。
-              本番ビルド(TestFlight)では非表示。 */}
-          {__DEV__ ? (
-            <View style={styles.center}>
-              <Pressable
-                style={styles.devButton}
-                onPress={onGenerate}
-                disabled={generating}
-              >
-                <Sparkles size={13} color={colors.textDim} />
-                <Text style={styles.devButtonText}>
-                  {generating ? "生成中…" : "AIで今月のテーマを生成"}
-                </Text>
-              </Pressable>
-            </View>
-          ) : null}
-
-          {/* ビルボード(ハニカム2Dパン。ScrollView内なので高さを固定する) */}
-          <View style={styles.themeCanvas}>
-            <BillboardMosaic
-              artworks={artworks}
-              highlightId={myThemeArtwork?.id ?? "1"}
-            />
+        {/* 開発確認用ボタン(本番ビルドでは非表示)。固定レイアウトを圧迫しない細い行。 */}
+        {__DEV__ ? (
+          <View style={styles.devRow}>
+            <Pressable
+              style={styles.devButton}
+              onPress={onGenerate}
+              disabled={generating}
+            >
+              <Sparkles size={13} color={colors.textDim} />
+              <Text style={styles.devButtonText}>
+                {generating ? "生成中…" : "AIで今月のテーマを生成"}
+              </Text>
+            </Pressable>
           </View>
-        </ScrollView>
+        ) : null}
+
+        {/* ハニカム 2Dパン キャンバス(全幅・画面いっぱい・縦スクロールしない) */}
+        <View style={styles.canvasArea}>
+          <BillboardMosaic
+            artworks={artworks}
+            highlightId={myThemeArtwork?.id ?? "1"}
+          />
+        </View>
       </SafeAreaView>
 
       <BottomNav />
@@ -152,50 +131,34 @@ export default function ThemeScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   safe: { flex: 1 },
-  content: { paddingHorizontal: 16, paddingBottom: 130, gap: 20 },
-  themeCanvas: { height: 460 },
-  banner: {
-    borderRadius: radius.xl,
-    borderColor: colors.border,
-    borderWidth: 1,
-    padding: 22,
-    alignItems: "center",
-  },
-  starWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: radius.md,
-    backgroundColor: colors.glassStrong,
-    borderColor: colors.borderStrong,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 12,
-  },
-  title: { color: colors.text, fontSize: 28, fontWeight: "800" },
-  desc: {
-    color: colors.textDim,
-    fontSize: 13,
-    marginTop: 8,
-    textAlign: "center",
-  },
-  remain: {
+  // 通常ビルボード(index)の topBar と同じ余白基準
+  topBar: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginTop: 14,
-    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 2,
+    paddingBottom: 8,
+    gap: 10,
+  },
+  topInfo: { flex: 1 },
+  kicker: { color: colors.textDim, fontSize: 11, letterSpacing: 1 },
+  themeTitle: { color: colors.text, fontSize: 18, fontWeight: "800", marginTop: 1 },
+  themeDesc: { color: colors.textFaint, fontSize: 11, marginTop: 2 },
+  remainChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: radius.pill,
+    backgroundColor: colors.glass,
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: radius.pill,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
   },
-  remainDim: { color: colors.textFaint, fontSize: 13 },
-  remainStrong: { color: colors.cyan, fontSize: 14, fontWeight: "700" },
-  stats: { flexDirection: "row", gap: 12 },
-  statItem: { flex: 1 },
-  center: { alignItems: "center", gap: 12 },
+  remainDim: { color: colors.textFaint, fontSize: 12 },
+  remainStrong: { color: colors.cyan, fontSize: 13, fontWeight: "700" },
+  devRow: { paddingHorizontal: 16, paddingBottom: 6, alignItems: "flex-start" },
   devButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -209,4 +172,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.glass,
   },
   devButtonText: { color: colors.textDim, fontSize: 12, fontWeight: "600" },
+  // 通常ビルボードと同じ: 全幅・flex で画面いっぱい、下部タブ分の余白のみ確保
+  canvasArea: { flex: 1, marginBottom: 96 },
 });
