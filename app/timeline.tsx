@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Bell,
@@ -49,6 +49,7 @@ import { useProfile } from "@/context/ProfileContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { useLikes } from "@/context/LikesContext";
 import { useSupport } from "@/context/SupportContext";
+import { fetchTimelinePosts } from "@/lib/posts";
 import { userPostToTimelinePost } from "@/lib/userPost";
 import { hapticLight } from "@/lib/haptics";
 import { formatCount } from "@/lib/format";
@@ -117,6 +118,22 @@ export default function TimelineScreen() {
   const { unreadCount, dmUnread } = useNotifications();
   const { isLiked, toggleLike } = useLikes();
   const { supports } = useSupport();
+  // Supabase から取得した全ユーザーの投稿(null=未取得/未設定/失敗 → モックにフォールバック)。
+  const [dbPosts, setDbPosts] = useState<TimelinePost[] | null>(null);
+
+  // 画面表示のたびに最新のタイムラインを取得(投稿直後にも反映)。
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      (async () => {
+        const data = await fetchTimelinePosts();
+        if (alive) setDbPosts(data);
+      })();
+      return () => {
+        alive = false;
+      };
+    }, []),
+  );
 
   // ユーザー自身の「タイムライン投稿」だけを先頭に表示(ビルボード/テーマ投稿は除外)。
   const userTimeline = useMemo<TimelinePost[]>(
@@ -156,13 +173,13 @@ export default function TimelineScreen() {
     [supports],
   );
 
-  const posts = useMemo<TimelinePost[]>(
-    () =>
-      activeTab === "おすすめ"
-        ? [...userTimeline, ...getTimelinePosts()]
-        : supportTimeline,
-    [activeTab, userTimeline, supportTimeline],
-  );
+  const posts = useMemo<TimelinePost[]>(() => {
+    if (activeTab !== "おすすめ") return supportTimeline;
+    // Supabase が使える時は全ユーザーの実投稿を表示。
+    // 取得できない時(未設定/失敗)は従来のローカル+モックにフォールバック。
+    if (dbPosts !== null) return dbPosts;
+    return [...userTimeline, ...getTimelinePosts()];
+  }, [activeTab, dbPosts, userTimeline, supportTimeline]);
 
   const switchTab = (tab: Tab) => {
     setActiveTab(tab);
