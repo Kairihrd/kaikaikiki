@@ -127,6 +127,11 @@ export default function TimelineScreen() {
       let alive = true;
       (async () => {
         const data = await fetchTimelinePosts();
+        if (__DEV__) {
+          console.warn(
+            `[timeline] dbPosts=${data === null ? "null(→モック)" : data.length + "件"}`,
+          );
+        }
         if (alive) setDbPosts(data);
       })();
       return () => {
